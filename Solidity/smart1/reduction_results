@@ -1,0 +1,28 @@
+Method: BFS_TOP_DOWN
+
+Iteration: 1
+
+TOP_DOWN BFS_TIME: 41 seconds
+Script executed successfully.
+TOTAL TIME: 43 seconds
+TOKENS: 927
+
+Number of functions: 19
+
+Method: BFS_DOWN_TOP
+
+Iteration: 1
+
+DOWN_TOP_BFS TIME: 53 seconds
+Script executed successfully.
+TOTAL TIME: 55 seconds
+TOKENS: 927
+
+Number of functions: 19
+
+Method: PERSES
+
+TOTAL TIME: 1762 seconds
+TOKENS: 178
+
+Number of functions: 14

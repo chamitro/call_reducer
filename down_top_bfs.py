@@ -66,23 +66,46 @@ class RemovalListener(SolidityListener):
     def __init__(self, nodes_to_remove):
         super().__init__()
         self.removals = []
+        self.replacements = []
         self.nodes_to_remove = nodes_to_remove
+        print(self.nodes_to_remove)
 
-    def enterFunctionDefinition(self, ctx):
-        func_name = ctx.children[0].getText()  # Extracting the function name from the correct position
-        func_name = re.sub(r'^function\s*', '', func_name)  # Remove the 'function' prefix using regex
-        if func_name in self.nodes_to_remove:
+
+    def enterFunctionDefinition(self, ctx: SolidityParser.FunctionDefinitionContext):
+        functions_name = ctx.getChild(0).getText()  # Extract the function name from the context
+        function_name = functions_name.replace("function","")
+#        print(function_name)
+        if function_name in self.nodes_to_remove:
+            print(f"Attempting to remove node: {function_name}")
             self.removals.append((ctx.start.start, ctx.stop.stop))
-    
-    def enterModifierDefinition(self, ctx):
-        mod_name = ctx.children[1].getText()  # Extracting the modifier name from the correct position
-        if mod_name in self.nodes_to_remove:
+       
+    def enterModifierDefinition(self, ctx: SolidityParser.ModifierDefinitionContext):
+        self.removals.append((ctx.start.start, ctx.stop.stop))
+
+    def enterExpressionStatement(self, ctx: SolidityParser.ExpressionStatementContext):
+        text = ctx.getText()
+        if any(node in text for node in self.nodes_to_remove):
+            print("EXPRESSION FOUUUND")
             self.removals.append((ctx.start.start, ctx.stop.stop))
 
-    def enterContractDefinition(self, ctx):
-        contract_name = ctx.identifier().getText()
-        if contract_name in self.nodes_to_remove:
-            self.removals.append((ctx.start.start, ctx.stop.stop))
+    def enterVariableDeclarationStatement(self, ctx: SolidityParser.VariableDeclarationStatementContext):
+        text = ctx.getText()
+        if any(node in text for node in self.nodes_to_remove):
+            equal_sign_index = text.find('=')
+            print("VARIABLE DECLERATIONNNN")
+            print(text)
+            if equal_sign_index != -1:
+                start = ctx.start.start + equal_sign_index + 1
+                stop = ctx.stop.stop
+
+                # Ensure we include the semicolon if it is within the range
+                if stop < ctx.stop.stop and text[stop - ctx.start.start] == ';':
+                    stop += 1
+                # Add removal range
+                stop -= 1
+                self.removals.append((start, stop))
+                print(f"Removing code from {start} to {stop}")
+
 
 def remove_with_antlr(source_code, nodes_to_remove):
     lexer = SolidityLexer(InputStream(source_code))
@@ -93,42 +116,40 @@ def remove_with_antlr(source_code, nodes_to_remove):
     listener = RemovalListener(nodes_to_remove)
     walker = ParseTreeWalker()
     walker.walk(listener, tree)
-
+    print("KOUUUUUUUUUUUUUUUUU")
     # Remove code blocks in reverse order to avoid shifting indices
     for start, stop in sorted(listener.removals, reverse=True):
-        source_code = source_code[:start] + source_code[stop+1:]
-
-    # Additional step to remove leftover newlines and spaces
-    source_code = re.sub(r'\n\s*\n', '\n', source_code).strip()
-
-    # Ensure the source code is still syntactically correct
-    try:
-        lexer = SolidityLexer(InputStream(source_code))
-        stream = CommonTokenStream(lexer)
-        parser = SolidityParser(stream)
-        tree = parser.sourceUnit()
-        # If parsing is successful, return the modified source code
-        print("Validation of modified Solidity code successful.")
-        return source_code
-    except Exception as e:
-        print(f"Validation failed after modification: {e}")
-        return None
-
+        # Check if the identified block corresponds to a node we want to remove
+        code_block = source_code[start:stop]
+        # Assuming nodes_to_remove are names of functions or contracts
+#        print(source_code[:start] + source_code[stop+1:])
+        if any(node in code_block for node in nodes_to_remove):
+            print(source_code[start:stop+1])
+            source_code = source_code[:start] + source_code[stop+1:]
+        # Remove code blocks in reverse order to avoid shifting indices
+        
+    return source_code
 
 def process_node(graph, node, sol_file_path, original_findings, processed_nodes):
     """Process a node based on its connections and attempt removal if isolated."""
-    if node in processed_nodes:
-        return False
-
     with open(sol_file_path, 'r') as file:
         original_content = file.read()
 
     modified_content = original_content  # Start with original content for modifications
-    processed_nodes.add(node)  # Mark node as processed
-    
+    processed_nodes = set()  # Track nodes that have been processed to avoid duplication
+   
     # Determine if the node is isolated
     if (not graph[node]['outbound'] or graph[node]['outbound'] == ['None']) and \
-       (not graph[node]['inbound'] or graph[node]['inbound'] == ['None']):
+   (not graph[node]['inbound'] or graph[node]['inbound'] == ['None']):
+        is_isolated = True
+    elif graph[node]['outbound'] == ['transfer'] and (not graph[node]['inbound'] or graph[node]['inbound'] == ['None']):
+        is_isolated = True
+    elif graph[node]['outbound'] == ['push'] and (not graph[node]['inbound'] or graph[node]['inbound'] == ['None']):
+        is_isolated = True
+    else:
+        is_isolated = False
+
+    if is_isolated:
         nodes_to_remove = {node}
         print(f"Attempting to remove isolated node: {node}")
         modified_content = remove_with_antlr(modified_content, nodes_to_remove)
@@ -149,7 +170,6 @@ def process_node(graph, node, sol_file_path, original_findings, processed_nodes)
                 print(f"Slither analysis passed for isolated node {node}. Writing changes.")
                 with open(sol_file_path, 'w') as file:
                     file.write(modified_content)
-                os.remove(temp_file_path)  # Clean up the temporary file
                 return True
         print(f"Slither analysis failed for isolated node {node}. No changes made.")
         os.remove(temp_file_path)  # Clean up the temporary file
@@ -165,7 +185,7 @@ def process_node(graph, node, sol_file_path, original_findings, processed_nodes)
                 nodes_to_remove.add(inbound)
                 if inbound in graph and graph[inbound]['inbound'] and graph[inbound]['inbound'] != ['None']:
                     nodes_to_remove.update(graph[inbound]['inbound'])
-                collect_nodes_to_remove(inbound, graph, nodes_to_remove)
+#                collect_nodes_to_remove(inbound, graph, nodes_to_remove)
 
     for inbound in graph[node]['inbound']:
         if inbound == 'None':

@@ -69,63 +69,25 @@ class RemovalListener(SolidityListener):
         self.removals = []
         self.replacements = []
         self.nodes_to_remove = nodes_to_remove
+        print(self.nodes_to_remove)
 
-#    def enterContractDefinition(self, ctx: SolidityParser.ContractDefinitionContext):
-##        contract_name = ctx.getChild(1).getText()
-##        print(f"Contract name: {contract_name}")
-##        print(ctx.getChild(2).getText())
-##        print("inheritage")
-##        print(ctx.getChild(3).getText())
-#        self.removals.append((ctx.start.start, ctx.stop.stop))
 
     def enterFunctionDefinition(self, ctx: SolidityParser.FunctionDefinitionContext):
-        self.removals.append((ctx.start.start, ctx.stop.stop))
+        functions_name = ctx.getChild(0).getText()  # Extract the function name from the context
+        function_name = functions_name.replace("function","")
+#        print(function_name)
+        if function_name in self.nodes_to_remove:
+            print(f"Attempting to remove node: {function_name}")
+            self.removals.append((ctx.start.start, ctx.stop.stop))
        
     def enterModifierDefinition(self, ctx: SolidityParser.ModifierDefinitionContext):
         self.removals.append((ctx.start.start, ctx.stop.stop))
-
-#    def enterSimpleStatement(self, ctx):
-#        if ctx.expressionStatement() is not None:
-#            expr_text = ctx.expressionStatement().getText()
-#            if any(node in expr_text for node in self.nodes_to_remove):
-#                # Detect variable declaration part if it exists
-#                variable_decl_match = re.match(r'^(\w+\s+\w+\s*=\s*)', expr_text)
-#                print(variable_decl_match)
-#                if variable_decl_match:
-#                    variable_decl = variable_decl_match.group(1) + ';'
-#                    start_index = ctx.start.start
-#                    stop_index = start_index + len(variable_decl) - 1
-#                    self.removals.append((start_index, stop_index))
-#                    print(variable_decl)
-#                else:
-#                    stop_index = ctx.stop.stop
-#                    if ctx.stop.text == ';':
-#                        stop_index += 1
-#                    self.removals.append((ctx.start.start, stop_index))
-#                    print(expr_text)
-#        else:
-#            variable_decl_text = ctx.variableDeclarationStatement().getText()
-#            if any(node in variable_decl_text for node in self.nodes_to_remove):
-#                stop_index = ctx.stop.stop
-#                if ctx.stop.text == ';':
-#                    stop_index += 1
-#                print(variable_decl_text)
-#                self.removals.append((ctx.start.start, stop_index))
-    
-#    def enterExpression(self, ctx: SolidityParser.ExpressionStatementContext):
-#        text = ctx.getText()
-#        if any(node in text for node in self.nodes_to_remove):
-#            stop_index = ctx.stop.stop
-#            print(text)
-##            if ctx.stop.text == ';':
-##                stop_index += 1
-##            print(text)
-#            self.removals.append((ctx.start.start, stop_index))
-    
-#    def enterSimpleStatement(self, ctx: SolidityParser.SimpleStatementContext):
-#        if ctx.expressionStatement() is not None:
-#            text = ctx.getText()
-
+        
+    def enterExpressionStatement(self, ctx: SolidityParser.ExpressionStatementContext):
+        text = ctx.getText()
+        if any(node in text for node in self.nodes_to_remove):
+            print("EXPRESSION FOUUUND")
+            self.removals.append((ctx.start.start, ctx.stop.stop))
 
     def enterVariableDeclarationStatement(self, ctx: SolidityParser.VariableDeclarationStatementContext):
         text = ctx.getText()
@@ -155,12 +117,13 @@ def remove_with_antlr(source_code, nodes_to_remove):
     listener = RemovalListener(nodes_to_remove)
     walker = ParseTreeWalker()
     walker.walk(listener, tree)
-
+    print("KOUUUUUUUUUUUUUUUUU")
     # Remove code blocks in reverse order to avoid shifting indices
     for start, stop in sorted(listener.removals, reverse=True):
         # Check if the identified block corresponds to a node we want to remove
         code_block = source_code[start:stop]
         # Assuming nodes_to_remove are names of functions or contracts
+#        print(source_code[:start] + source_code[stop+1:])
         if any(node in code_block for node in nodes_to_remove):
             print(source_code[start:stop+1])
             source_code = source_code[:start] + source_code[stop+1:]
