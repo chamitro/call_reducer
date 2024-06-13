@@ -3,6 +3,7 @@ import re
 import subprocess
 import argparse
 import tempfile
+import networkx as nx
 from antlr4 import *
 from SolidityLexer import SolidityLexer
 from SolidityParser import SolidityParser
@@ -79,12 +80,14 @@ class RemovalListener(SolidityListener):
         if function_name in self.nodes_to_remove:
             print(f"Attempting to remove node: {function_name}")
             self.removals.append((ctx.start.start, ctx.stop.stop))
-       
+        super().enterFunctionDefinition(ctx)
+
     def enterModifierDefinition(self, ctx: SolidityParser.ModifierDefinitionContext):
         self.removals.append((ctx.start.start, ctx.stop.stop))
-        
+
     def enterExpressionStatement(self, ctx: SolidityParser.ExpressionStatementContext):
         text = ctx.getText()
+        print("TEEEEXT", text)
         if any(node in text for node in self.nodes_to_remove):
             print("EXPRESSION FOUUUND")
             self.removals.append((ctx.start.start, ctx.stop.stop))
@@ -128,26 +131,24 @@ def remove_with_antlr(source_code, nodes_to_remove):
             print(source_code[start:stop+1])
             source_code = source_code[:start] + source_code[stop+1:]
         # Remove code blocks in reverse order to avoid shifting indices
-        
+
     return source_code
 
-def process_node(graph, node, sol_file_path, original_findings):
+def process_node(graph, node, sol_file_path, original_findings, removed_nodes):
     """Process a node based on its connections and attempt removal if isolated."""
+    if node in removed_nodes:
+        return
     with open(sol_file_path, 'r') as file:
         original_content = file.read()
 
     modified_content = original_content  # Start with original content for modifications
     processed_nodes = set()  # Track nodes that have been processed to avoid duplication
-   
+
     # Determine if the node is isolated
-    if (not graph[node]['outbound'] or graph[node]['outbound'] == ['None']) and \
-   (not graph[node]['inbound'] or graph[node]['inbound'] == ['None']):
-        is_isolated = True
-    elif graph[node]['outbound'] == ['transfer'] and (not graph[node]['inbound'] or graph[node]['inbound'] == ['None']):
-        is_isolated = True
-    elif graph[node]['outbound'] == ['push'] and (not graph[node]['inbound'] or graph[node]['inbound'] == ['None']):
+    if graph.in_degree(node) == 0 and graph.out_degree(node) == 0:
         is_isolated = True
     else:
+        # The node has either incoming or outgoing edges.
         is_isolated = False
 
     if is_isolated:
@@ -178,22 +179,30 @@ def process_node(graph, node, sol_file_path, original_findings):
 
     def collect_nodes_to_remove(start_node, graph, nodes_to_remove):
         """Recursively collect nodes to remove, including outbounds and their inbounds."""
+        for n in nodes_to_remove:
+            in_nodes = {x for x, _ in graph.in_edges(outbound)}
+            nodes_to_remove.update(in_nodes)
+
+        for n in nodes_to_remove:
+            in_nodes = {x for x, _ in graph.in_edges(outbound)}
+            nodes_to_remove.update(in_nodes)
+
         if start_node not in graph or start_node in nodes_to_remove:
             return
         nodes_to_remove.add(start_node)
-        for outbound in graph[start_node]['outbound']:
+        for outbound in graph.neighbors(start_node):
             if outbound != 'None':
                 nodes_to_remove.add(outbound)
-                if outbound in graph and graph[outbound]['inbound'] and graph[outbound]['inbound'] != ['None']:
-                    nodes_to_remove.update(graph[outbound]['inbound'])
-#                collect_nodes_to_remove(outbound, graph, nodes_to_remove)
+                if outbound in graph and graph.in_degree(outbound) != 0:
+                    in_nodes = {x for x, _ in graph.in_edges(outbound)}
+                    nodes_to_remove.update(in_nodes)
 
-    for outbound in graph[node]['outbound']:
-        if outbound == 'None':
-            continue
-
+    for outbound in graph.neighbors(node):
         nodes_to_remove = set([node])
-        collect_nodes_to_remove(outbound, graph, nodes_to_remove)
+        ancestors = set()
+        for n in nodes_to_remove:
+            ancestors.update(nx.ancestors(graph, n))
+        nodes_to_remove.update(ancestors)
 
         for removal_node in nodes_to_remove:
             if removal_node not in processed_nodes and removal_node != 'None':  # Ensure each node is processed once
@@ -218,6 +227,7 @@ def process_node(graph, node, sol_file_path, original_findings):
                 with open(sol_file_path, 'w') as file:
                     file.write(modified_content)
                 os.remove(temp_file_path)  # Clean up the temporary file
+                removed_nodes.update(nodes_to_remove)
                 return True
             else:
                 print(f"Modifications for nodes {nodes_to_remove} did not meet criteria and were not applied.")
@@ -231,11 +241,12 @@ def process_node(graph, node, sol_file_path, original_findings):
 
 def parse_nodes(file_path):
     """Parses a file to build a graph of nodes with their inbound and outbound connections."""
-    graph = {}
+    graph = nx.DiGraph()
     with open(file_path, 'r') as file:
         for line in file:
             node_info, edges_info = line.split(' has ')
             node = node_info.strip()
+            graph.add_node(node)
             edges_parts = edges_info.split(' - ')
             outbound_info = edges_parts[1].split(': ')[1]
             inbound_info = edges_parts[2].split(': ')[1]
@@ -245,7 +256,18 @@ def parse_nodes(file_path):
             if outbound_edges == ['None']: outbound_edges = []
             if inbound_edges == ['None']: inbound_edges = []
 
-            graph[node] = {'outbound': outbound_edges, 'inbound': inbound_edges}
+            for target in outbound_edges:
+                if target is None or target == "None":
+                    continue
+                graph.add_node(target)
+                graph.add_edge(node, target)
+
+            for target in inbound_edges:
+                if target is None or target == "None":
+                    continue
+                graph.add_node(target)
+                graph.add_edge(target, node)
+
     return graph
 
 def main():
@@ -258,8 +280,10 @@ def main():
     original_findings = parse_slither_findings(original_slither_output, consider_findings) if original_slither_output else {}
 
     # Process each node based on the defined steps
+    removed_nodes = set()
     for node in graph:
-        process_node(graph, node, sol_file_path, original_findings)
+        process_node(graph, node, sol_file_path, original_findings,
+                     removed_nodes)
 
 if __name__ == "__main__":
     main()
