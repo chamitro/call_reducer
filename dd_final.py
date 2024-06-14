@@ -147,24 +147,20 @@ def remove_with_antlr(source_code, nodes_to_remove):
 
 
 class Interesting():
-    def __init__(self, graph, content, findings, file_path,
-                 root_nodes):
+    def __init__(self, graph, content, findings, file_path):
         self.graph = graph
         self.content = content
         self.original_findings = findings
         self.file_path = file_path
-        self.root_nodes = root_nodes
 
     def __call__(self, nodes, config_id):
-        nodes_to_remove = {n for n in self.root_nodes if n not in nodes}
+        nodes_to_remove = [n for n in self.graph.nodes() if n not in nodes]
+        print("NODES TO REMOVE ", nodes_to_remove)
         if not nodes_to_remove:
             return picire.Outcome.FAIL
         new_content = self.test_removing_functions(nodes_to_remove,
                                                    self.content)
         if new_content is not None:
-            for n in nodes_to_remove:
-                if n in self.graph:
-                    self.graph.remove_node(n)
             self.content = new_content
             return picire.Outcome.FAIL
         else:
@@ -234,12 +230,6 @@ def parse_nodes(file_path):
     return graph
 
 
-def get_graph_nodes(graph, outputs):
-    nodes = set()
-    for n in outputs:
-        nodes.update(graph.predecessors(n))
-    return list(nodes)
-
 
 def main():
     nodes_file_path = 'nodes.txt'
@@ -252,33 +242,20 @@ def main():
     with open(sol_file_path, 'r') as file:
         original_content = file.read()
 
-    count = 1
-    while True:
-        nodes = list(graph.nodes())
+    interesting = Interesting(graph, original_content, original_findings,
+                              sol_file_path)
+    nodes = list(graph.nodes())
+    dd_obj = picire.DD(interesting,
+                       split=picire.splitter.ZellerSplit(n=4),
+                       cache=picire.cache.ConfigCache(),
+                       config_iterator=picire.iterator.CombinedIterator(
+                           True, picire.iterator.forward,
+                           picire.iterator.backward))
+    output = [x for x in dd_obj(nodes)]
 
-        root_nodes = [n for n in nodes if graph.out_degree(n) == 0
-                      or (graph.out_degree(n) == 1 and set(graph.neighbors(n)) == {n})]
-        interesting = Interesting(graph, original_content, original_findings,
-                                  sol_file_path, root_nodes)
-
-        while True:
-            dd_obj = picire.DD(interesting,
-                               split=picire.splitter.BalancedSplit(n=2),
-                               cache=picire.cache.ConfigCache(),
-                               config_iterator=picire.iterator.CombinedIterator(
-                                   True, picire.iterator.forward,
-                                   picire.iterator.backward))
-            output = [x for x in dd_obj(root_nodes)]
-            new_nodes = get_graph_nodes(graph, output)
-            if not new_nodes or new_nodes == interesting.root_nodes:
-                break
-            interesting = Interesting(interesting.graph,
-                                      interesting.content, original_findings,
-                                      sol_file_path, new_nodes)
-            root_nodes = new_nodes
-        if original_content == interesting.content:
-            break
-        original_content = interesting.content
+    # Process each node based on the defined steps
+    #ddcall = DDCallGraph(original_findings, sol_file_path)
+    #ddcall.process_input(graph)
 
 
 if __name__ == "__main__":
