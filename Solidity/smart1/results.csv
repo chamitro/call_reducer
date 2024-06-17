@@ -1,0 +1,8 @@
+Script,Execution Time,Number of Tokens,Number of Functions
+top_down_bfs.py,73.45420956611633,477,19
+down_top_bfs.py,45.516878843307495,484,20
+dd_final.py,212.21556186676025,442,18
+hdd_final.py,333.60290932655334,442,18
+hdd_top_down.py,273.63688373565674,442,18
+java_perses_deploy_after_dd_final_with_solidity,1490.817598819732666,178,14
+java_perses_deploy_initial_with_solidity2,1762.8326890468597412,178,14
