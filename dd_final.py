@@ -1,5 +1,7 @@
 import os
 import re
+import string
+import random
 import subprocess
 import argparse
 import tempfile
@@ -122,12 +124,7 @@ class RemovalListener(SolidityListener):
                 print(f"Removing code from {start} to {stop}")
 
 
-def remove_with_antlr(source_code, nodes_to_remove):
-    lexer = SolidityLexer(InputStream(source_code))
-    stream = CommonTokenStream(lexer)
-    parser = SolidityParser(stream)
-    tree = parser.sourceUnit()
-
+def remove_with_antlr(source_code, tree, nodes_to_remove):
     listener = RemovalListener(nodes_to_remove)
     walker = ParseTreeWalker()
     walker.walk(listener, tree)
@@ -150,11 +147,20 @@ class Interesting():
     def __init__(self, graph, content, findings, file_path):
         self.graph = graph
         self.content = content
+        self.content_ = content
         self.original_findings = findings
         self.file_path = file_path
+        self.cache = {}
+        lexer = SolidityLexer(InputStream(content))
+        stream = CommonTokenStream(lexer)
+        parser = SolidityParser(stream)
+        self.tree = parser.sourceUnit()
 
     def __call__(self, nodes, config_id):
         nodes_to_remove = [n for n in self.graph.nodes() if n not in nodes]
+        fr_nodes = frozenset(nodes)
+        if fr_nodes in self.cache:
+            return self.cache.get(fr_nodes)
         print("NODES TO REMOVE ", nodes_to_remove)
         if not nodes_to_remove:
             return picire.Outcome.FAIL
@@ -162,16 +168,21 @@ class Interesting():
                                                    self.content)
         if new_content is not None:
             self.content = new_content
-            return picire.Outcome.FAIL
+            res = picire.Outcome.FAIL
         else:
-            return picire.Outcome.PASS
+            res = picire.Outcome.PASS
+        self.cache[fr_nodes] = res
+        return res
 
     def test_removing_functions(self, nodes_to_remove, content):
         modified_content = content
-        modified_content = remove_with_antlr(modified_content, nodes_to_remove)
+        modified_content = remove_with_antlr(self.content_, self.tree,
+                                             nodes_to_remove)
+        name = ''.join(random.sample(
+            string.ascii_letters + string.digits, 5))
 
         # Write the modified content to a temporary file for Slither analysis
-        temp_file_path = "temp_sol_file.sol"
+        temp_file_path = f"{name}.sol"
         with open(temp_file_path, 'w') as temp_file:
             temp_file.write(modified_content)
 
@@ -191,9 +202,11 @@ class Interesting():
                 return modified_content
             else:
                 print(f"Modifications for nodes {nodes_to_remove} did not meet criteria and were not applied.")
+                os.remove(temp_file_path)  # Clean up the temporary file
                 return None
         else:
             print(f"Slither analysis failed for nodes {nodes_to_remove}. No changes made.")
+            os.remove(temp_file_path)  # Clean up the temporary file
             return None
 
 
@@ -245,13 +258,14 @@ def main():
     interesting = Interesting(graph, original_content, original_findings,
                               sol_file_path)
     nodes = list(graph.nodes())
-    dd_obj = picire.DD(interesting,
-                       split=picire.splitter.ZellerSplit(n=4),
-                       cache=picire.cache.ConfigCache(),
-                       config_iterator=picire.iterator.CombinedIterator(
-                           True, picire.iterator.forward,
-                           picire.iterator.backward))
+    dd_obj = picire.ParallelDD(interesting,
+                              split=picire.splitter.ZellerSplit(n=4),
+                              cache=picire.cache.ConfigCache(),
+                              config_iterator=picire.iterator.CombinedIterator(
+                              False, picire.iterator.skip,
+                              picire.iterator.random))
     output = [x for x in dd_obj(nodes)]
+    print(output)
 
     # Process each node based on the defined steps
     #ddcall = DDCallGraph(original_findings, sol_file_path)
