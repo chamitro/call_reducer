@@ -1,113 +1,104 @@
-pragma solidity ^0.4.18;
+pragma solidity 0.4.18;
 
-library SafeMath {
+interface ERC20 {
 
+    function transfer(address _to, uint _value) public returns (bool success);
+    function transferFrom(address _from, address _to, uint _value) public returns (bool success);
+
+    event Approval(address indexed _owner, address indexed _spender, uint _value);
 }
 
-contract ownable {
-    address public owner;
+contract PermissionGroups {
 
-    modifier onlyOwner {
-        require(msg.sender == owner);
+    address public admin;
+    address public pendingAdmin;
+    mapping(address=>bool) internal operators;
+    mapping(address=>bool) internal alerters;
+    address[] internal operatorsGroup;
+    address[] internal alertersGroup;
+
+    modifier onlyAdmin() {
+        require(msg.sender == admin);
         _;
     }
 
-    function isOwner(address _owner) internal view returns (bool) {
-        return owner == _owner;
-    }
-}
-
-contract Pausable is ownable {
-    bool public paused = false;
-
-    event Pause();
-    event Unpause();
-
-    modifier whenNotPaused() {
-        require(!paused);
+    modifier onlyOperator() {
+        require(operators[msg.sender]);
         _;
     }
 
-    modifier whenPaused() {
-        require(paused);
+    modifier onlyAlerter() {
+        require(alerters[msg.sender]);
         _;
     }
 
+    event TransferAdminPending(address pendingAdmin);
+
+    event AdminClaimed( address newAdmin, address previousAdmin);
+
+    event AlerterAdded (address newAlerter, bool isAdd);
+
+    event OperatorAdded(address newOperator, bool isAdd);
+
 }
 
-contract Lockable is Pausable {
-    mapping (address => bool) public locked;
-
-    event Lockup(address indexed target);
-    event UnLockup(address indexed target);
-
-    function isLockup(address _target) internal view returns (bool) {
-        if(true == locked[_target])
-            return true;
-    }
+interface BurnableToken {
+    function transferFrom(address _from, address _to, uint _value) public returns (bool);
+    function burnFrom(address _from, uint256 _value) public returns (bool);
 }
 
-interface tokenRecipient { function receiveApproval(address _from, uint256 _value, address _token, bytes _extraData) external; }
+contract Withdrawable is PermissionGroups {
 
-contract TokenERC20 {
-    using SafeMath for uint;
+    event TokenWithdraw(ERC20 token, uint amount, address sendTo);
 
-    string public name;
-    string public symbol;
-    uint8 public decimals = 18;
+    event EtherWithdraw(uint amount, address sendTo);
 
-    uint256 public totalSupply;
+}
 
-    mapping (address => uint256) public balanceOf;
-    mapping (address => mapping (address => uint256)) public allowance;
+interface FeeBurnerInterface {
+    function handleFees (uint tradeWeiAmount, address reserve, address wallet) public returns(bool);
+}
 
-    event Transfer(address indexed from, address indexed to, uint256 value);
+contract FeeBurner is Withdrawable, FeeBurnerInterface {
 
-    event Approval(address indexed _owner, address indexed _spender, uint256 _value);
+    mapping(address=>uint) public reserveFeesInBps;
+    mapping(address=>address) public reserveKNCWallet;
+    mapping(address=>uint) public walletFeesInBps;
+    mapping(address=>uint) public reserveFeeToBurn;
+    mapping(address=>mapping(address=>uint)) public reserveFeeToWallet;
 
-    event Burn(address indexed from, uint256 value);
+    BurnableToken public knc;
+    address public kyberNetwork;
+    uint public kncPerETHRate = 300;
 
-    function TokenERC20 (
-        uint256 initialSupply,
-        string tokenName,
-        string tokenSymbol
-    ) public {
-        totalSupply = initialSupply * 10 ** uint256(decimals);  
-        balanceOf[msg.sender] = totalSupply;                
-        name = tokenName;                                   
-        symbol = tokenSymbol;                               
-    }
+    event AssignFeeToWallet(address reserve, address wallet, uint walletFee);
+    event AssignBurnFees(address reserve, uint burnFee);
 
-    function approve(address _spender, uint256 _value) public
-        returns (bool success) {
-        allowance[msg.sender][_spender] = _value;
-        Approval(msg.sender, _spender, _value);
+    function handleFees(uint tradeWeiAmount, address reserve, address wallet) public returns(bool) {
+        require(msg.sender == kyberNetwork);
+
+        uint kncAmount = tradeWeiAmount * kncPerETHRate;
+        uint fee = kncAmount * reserveFeesInBps[reserve] / 10000;
+
+        uint walletFee = fee * walletFeesInBps[wallet] / 10000;
+        require(fee >= walletFee);
+        uint feeToBurn = fee - walletFee;
+
+        if (walletFee > 0) {
+            reserveFeeToWallet[reserve][wallet] += walletFee;
+            AssignFeeToWallet(reserve, wallet, walletFee);
+        }
+
+        if (feeToBurn > 0) {
+            AssignBurnFees(reserve, feeToBurn);
+            reserveFeeToBurn[reserve] += feeToBurn;
+        }
+
         return true;
     }
 
-}
+    event BurnAssignedFees(address indexed reserve, address sender);
 
-contract ValueToken is Lockable, TokenERC20 {
-    uint256 public sellPrice;
-    uint256 public buyPrice;
-    uint256 public minAmount;
-    uint256 public soldToken;
+    event SendWalletFees(address indexed wallet, address reserve, address sender);
 
-    uint internal  MIN_ETHER        = 1*1e16; 
-    uint internal  EXCHANGE_RATE    = 10000;  
-
-    mapping (address => bool) public frozenAccount;
-
-    event FrozenFunds(address target, bool frozen);
-    event LogWithdrawContractToken(address indexed owner, uint value);
-    event LogFallbackTracer(address indexed owner, uint value);
-
-    function () payable public {
-        require(MIN_ETHER <= msg.value);
-        uint amount = msg.value;
-        uint token                            ;
-        require(token > 0);
-
-        LogFallbackTracer(msg.sender, amount);
-    }
 }
