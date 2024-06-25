@@ -10,7 +10,7 @@ slither after_hdd_final.py_ext_changed.sol 2> err
 
 # Define patterns and their expected counts in an associative array
 declare -A patterns=(
-  ["performs a multiplication on the result of a division"]=1
+  ["ignores return value"]=1
 )
 
 # Flag to track if all patterns match their expected counts

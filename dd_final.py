@@ -2,9 +2,9 @@ import os
 import re
 import string
 import random
+import time
 import subprocess
 import argparse
-import tempfile
 import networkx as nx
 import picire
 from antlr4 import *
@@ -65,7 +65,6 @@ class RemovalListener(SolidityListener):
     def __init__(self, nodes_to_remove):
         super().__init__()
         self.removals = []
-        self.replacements = []
         self.nodes_to_remove = nodes_to_remove
 
     def enterFunctionDefinition(self, ctx: SolidityParser.FunctionDefinitionContext):
@@ -115,7 +114,6 @@ class RemovalListener2(SolidityListener):
         self.nodes_to_remove = nodes_to_remove
         self.inheritance_graph = inheritance_graph
         self.temp_graph = inheritance_graph.copy()
-        print(f"Nodes to remove: {self.nodes_to_remove}")
 
     def enterContractDefinition(self, ctx: SolidityParser.ContractDefinitionContext):
         contract_type = ctx.getChild(0).getText()
@@ -128,13 +126,10 @@ class RemovalListener2(SolidityListener):
                 break
 
         if identifier is None:
-            print("Identifier not found in contract definition context")
             return
 
-        print(f"Entering contract definition: {identifier}")
         if identifier in self.nodes_to_remove:
             self.removals.append((ctx.start.start, ctx.stop.stop))
-            print(f"Marked for removal: contract {identifier}")
             parents = list(self.temp_graph.predecessors(identifier))
             children = list(self.temp_graph.successors(identifier))
             for child in children:
@@ -149,7 +144,6 @@ class RemovalListener2(SolidityListener):
                 for i, spec in enumerate(inheritance_specifiers):
                     spec_text = spec.getText()
                     if spec_text in self.nodes_to_remove:
-                        print(f"Marked for removal: inheritance specifier {spec_text}")
                         if len(inheritance_specifiers) == 1:
                             to_remove.append((ctx.children[3].start.start - 3, spec.stop.stop))
                         else:
@@ -162,21 +156,25 @@ class RemovalListener2(SolidityListener):
                     else:
                         updated_inheritance.append(spec_text)
                 if updated_inheritance:
-                    updated_inheritance_text = ", ".join(updated_inheritance)
+                    # Sort the updated inheritance specifiers based on the inheritance graph
+                    sorted_inheritance = self.sort_inheritance(updated_inheritance)
+                    updated_inheritance_text = ", ".join(sorted_inheritance)
                     self.replacements.append((ctx.getChild(1).getText(), updated_inheritance_text))
                 else:
                     self.removals.extend(to_remove)
-            print(f"Current removals: {self.removals}")
-            print(f"Current replacements: {self.replacements}")
 
     def exitSourceUnit(self, ctx: SolidityParser.SourceUnitContext):
         for identifier in self.temp_graph.nodes:
             parents = list(self.temp_graph.predecessors(identifier))
             if parents:
-                new_inheritance_specifiers = ", ".join(parents)
+                new_inheritance_specifiers = ", ".join(self.sort_inheritance(parents))
                 self.replacements.append((identifier, new_inheritance_specifiers))
-        print(f"Final removals: {self.removals}")
-        print(f"Final replacements: {self.replacements}")
+
+    def sort_inheritance(self, specifiers):
+        # Perform topological sorting of the specifiers based on the inheritance graph
+        subgraph = self.inheritance_graph.subgraph(specifiers).copy()
+        sorted_specifiers = list(nx.topological_sort(subgraph))
+        return sorted_specifiers
 
 def remove_with_antlr(source_code, tree, nodes_to_remove):
     listener = RemovalListener(nodes_to_remove)
@@ -200,14 +198,12 @@ def remove_with_antlr2(source_code, nodes_to_remove, inheritance_graph):
     walker.walk(listener, tree)
 
     for start, stop in sorted(listener.removals, reverse=True):
-        print(f"Removing code block from {start} to {stop}")
         source_code = source_code[:start] + (len(source_code[start:stop + 1]) * " ") + source_code[stop + 1:]
 
     for identifier, new_inheritance_specifiers in listener.replacements:
         pattern = re.compile(rf"(\b{identifier}\b\s+is\s+)[^{{]*")
         replacement_text = f"{identifier} is {new_inheritance_specifiers}" if new_inheritance_specifiers else f"{identifier}"
         source_code = pattern.sub(replacement_text, source_code)
-        print(f"Replacing inheritance for {identifier} with {new_inheritance_specifiers}")
 
     source_code = source_code.replace(r"/\s\s+/g", ' ')
     return re.sub(r'\n\s*\n', '\n\n', source_code)
@@ -355,7 +351,7 @@ def parse_nodes(file_path):
                 if target is None or target == "None":
                     continue
                 graph.add_node(target)
-                graph.add_edge(target, node)
+                graph.add.edge(target, node)
     return graph
 
 def parse_inherit(file_path):
@@ -385,6 +381,8 @@ def parse_inherit(file_path):
     return graph
 
 def main():
+    # Record the start time
+    start_time = time.time()
     mode = args.mode
     nodes_file_path = 'nodes.txt'
     sol_file_path = 'ext_changed.sol'
@@ -415,7 +413,11 @@ def main():
                                False, picire.iterator.skip,
                                picire.iterator.random))
         output = [x for x in dd_obj(nodes)]
-        print("KOUKA")
+    end_time = time.time()
+    # Calculate the elapsed time
+    elapsed_time = end_time - start_time
+    print(f"Execution time: {elapsed_time} seconds")
 
 if __name__ == "__main__":
     main()
+
