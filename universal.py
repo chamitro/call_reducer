@@ -37,10 +37,11 @@ class SolidityGraphListener(SolidityListener):
 
     def enterFunctionDefinition(self, ctx: SolidityParser.FunctionDefinitionContext):
         functions_name = ctx.getChild(0).getText()
-        function_name = functions_name.replace("function", "")
-        self.graph.add_node(function_name, label='function')
-        self.graph.add_edge(self.current_contract, function_name, label='defines_function')
-        self.current_function = function_name
+        function_name = functions_name.replace("function", "").strip()
+        unique_function_name = f"{self.current_contract}.{function_name}"
+        self.graph.add_node(unique_function_name, label='function')
+        self.graph.add_edge(self.current_contract, unique_function_name, label='defines_function')
+        self.current_function = unique_function_name
         self.function_counter += 1
 
     def enterEventDefinition(self, ctx: SolidityParser.EventDefinitionContext):
@@ -50,8 +51,9 @@ class SolidityGraphListener(SolidityListener):
 
     def enterEmitStatement(self, ctx: SolidityParser.EmitStatementContext):
         emit_statement = ctx.functionCall().getText()
-        self.graph.add_node(emit_statement, label='emit')
-        self.graph.add_edge(self.current_function, emit_statement, label='defines_emit')
+        unique_emit_statement = f"{self.current_function}.{emit_statement}"
+        self.graph.add_node(unique_emit_statement, label='emit')
+        self.graph.add_edge(self.current_function, unique_emit_statement, label='defines_emit')
 
     def enterStructDefinition(self, ctx: SolidityParser.StructDefinitionContext):
         struct_name = ctx.identifier().getText()
@@ -62,8 +64,9 @@ class SolidityGraphListener(SolidityListener):
         member_declarations = ctx.variableDeclaration()
         for member_decl in member_declarations:
             member_name = member_decl.identifier().getText()
-            self.graph.add_node(member_name, label='struct_member')
-            self.graph.add_edge(struct_name, member_name, label='defines_struct_member')
+            unique_member_name = f"{struct_name}.{member_name}"
+            self.graph.add_node(unique_member_name, label='struct_member')
+            self.graph.add_edge(struct_name, unique_member_name, label='defines_struct_member')
 
     def enterFunctionBody(self, ctx: SolidityParser.FunctionDefinitionContext):
         # Function body handled as part of enterFunctionDefinition
@@ -85,8 +88,9 @@ class SolidityGraphListener(SolidityListener):
                 return
         
             local_var_name = ctx.getChild(1).getText()
-            self.graph.add_node(local_var_name, label='local_variable')
-            self.graph.add_edge(self.current_function, local_var_name, label='defines_local_variable')
+            unique_local_var_name = f"{self.current_function}.{local_var_name}"
+            self.graph.add_node(unique_local_var_name, label='local_variable')
+            self.graph.add_edge(self.current_function, unique_local_var_name, label='defines_local_variable')
             self.local_variable_counter += 1
 
 
