@@ -241,6 +241,7 @@ class Interesting():
             return res
 
     def test_removing_functions(self, nodes_to_remove, content):
+    
         modified_content = remove_with_antlr(self.content_, self.tree, nodes_to_remove)
         name = ''.join(random.sample(string.ascii_letters + string.digits, 5))
         temp_file_path = f"{name}.sol"
