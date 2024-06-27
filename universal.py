@@ -68,10 +68,6 @@ class SolidityGraphListener(SolidityListener):
             self.graph.add_node(unique_member_name, label='struct_member')
             self.graph.add_edge(struct_name, unique_member_name, label='defines_struct_member')
 
-    def enterFunctionBody(self, ctx: SolidityParser.FunctionDefinitionContext):
-        # Function body handled as part of enterFunctionDefinition
-        pass
-
     def enterStateVariableDeclaration(self, ctx: SolidityParser.StateVariableDeclarationContext):
         identifier_token = ctx.identifier()
         var_name = identifier_token.getText()
