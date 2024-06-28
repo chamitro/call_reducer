@@ -254,7 +254,6 @@ class Interesting():
                                        modified_findings, consider_findings):
                 print("Keep property: Writing modified content to temp file")
                 os.remove(temp_file_path)
-                self.update_graph(nodes_to_remove)
                 self.removed_nodes = nodes_to_remove
                 return modified_content
             else:
@@ -399,7 +398,7 @@ def main():
                               'functions')
     function_nodes = [n for n in graph.nodes()
                       if n.node_type == "function"]
-    dd_obj_functions = picire.DD(
+    dd_obj_functions = picire.ParallelDD(
         interesting,
         split=picire.splitter.ZellerSplit(n=4),
         cache=picire.cache.ConfigCache(),
@@ -409,7 +408,8 @@ def main():
         )
     )
     output_functions = [x for x in dd_obj_functions(function_nodes)]
-    print(output_functions)
+    interesting.update_graph([f for f in function_nodes
+                              if f not in output_functions])
 
     interesting.mode = "contracts"
     contract_nodes = [n for n in graph.nodes()
