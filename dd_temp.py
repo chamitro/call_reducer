@@ -158,7 +158,16 @@ class RemovalListener2(SolidityListener):
                               n not in self.nodes_to_remove]:
             parents = list(self.temp_graph.predecessors(contract_node))
             if parents:
-                sorted_parents = [n for n in sorted_nodes if n in parents]
+                sorted_parents = []
+                for n in sorted_nodes:
+                    if n not in parents:
+                        continue
+                    pred_nodes = set(nx.ancestors(self.graph, n))
+                    sorted_parents.append(n)
+                    for pred in pred_nodes:
+                        if pred in sorted_parents:
+                            sorted_parents.remove(pred)
+
                 new_inheritance_specifiers = ", ".join(
                     parent.name for parent in sorted_parents)
                 self.replacements.append((contract_node.name,
