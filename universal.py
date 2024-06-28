@@ -64,7 +64,7 @@ class SolidityGraphListener(SolidityListener):
                 parent_contract_name = spec.userDefinedTypeName().getText()
                 if parent_contract_name != contract_name:
                     parent_node = self.contracts[parent_contract_name]
-                    self.graph.add_edge(contract_node, parent_node,
+                    self.graph.add_edge(parent_node, contract_node,
                                         label="inherits")
 
     def exitContractDefinition(self, ctx):
@@ -81,6 +81,19 @@ class SolidityGraphListener(SolidityListener):
             self.graph.add_edge(parent_node, function_node, label="def")
 
     def exitFunctionDefinition(self, ctxt):
+        self.pop_declaration()
+
+    def enterModifierDefinition(self,
+                                ctx: SolidityParser.ModifierDefinitionContext):
+        function_name = ctx.getChild(1).getText()
+        parent_node = self.peek_declaration()
+        function_node = DeclarationNode(function_name, "function", parent_node)
+        self.graph.add_node(function_node)
+        self.push_declaration(function_node)
+        if parent_node is not None:
+            self.graph.add_edge(parent_node, function_node, label="def")
+
+    def exitModifierDefinition(self, ctx):
         self.pop_declaration()
 
     def enterEventDefinition(self, ctx: SolidityParser.EventDefinitionContext):
