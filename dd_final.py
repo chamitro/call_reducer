@@ -166,8 +166,8 @@ class ContractRemovalListener(SolidityListener):
                               if n.node_type == "contract" and
                               n not in self.nodes_to_remove]:
             parents = list(self.temp_graph.predecessors(contract_node))
+            sorted_parents = []
             if parents:
-                sorted_parents = []
                 for n in sorted_nodes:
                     if n not in parents:
                         continue
@@ -177,10 +177,10 @@ class ContractRemovalListener(SolidityListener):
                         if pred in sorted_parents:
                             sorted_parents.remove(pred)
 
-                new_inheritance_specifiers = ", ".join(
-                    parent.name for parent in sorted_parents)
-                self.replacements.append((contract_node.name,
-                                          new_inheritance_specifiers))
+            new_inheritance_specifiers = ", ".join(
+                parent.name for parent in sorted_parents)
+            self.replacements.append((contract_node.name,
+                                      new_inheritance_specifiers))
 
 
 class DeclarationRemovalListener(SolidityListener):
@@ -215,7 +215,8 @@ class DeclarationRemovalListener(SolidityListener):
             print(f"Marking emit '{emit_name}' for removal.")
             self.removals.append((ctx.start.start, ctx.stop.stop))
 
-    def enterStateVariableDeclaration(self, ctx: SolidityParser.StateVariableDeclarationContext):
+    def enterStateVariableDeclaration(
+            self, ctx: SolidityParser.StateVariableDeclarationContext):
         variable_name = None
         for i in range(ctx.getChildCount()):
             if isinstance(ctx.getChild(i), SolidityParser.IdentifierContext):
@@ -223,25 +224,20 @@ class DeclarationRemovalListener(SolidityListener):
                 break
 
         if variable_name:
-#            print(variable_name)
             if any(node.name == variable_name for node in self.nodes_to_remove):
                 print(f"Marking state variable '{variable_name}' for removal.")
                 self.removals.append((ctx.start.start, ctx.stop.stop))
 
-    def enterVariableDeclaration(self, ctx: SolidityParser.VariableDeclarationContext):
+    def enterVariableDeclaration(self,
+                                 ctx: SolidityParser.VariableDeclarationContext):
         variable_name = ctx.getChild(1).getText()
-#        print(f"EXOUME VARIABLE DECLERATIIN me var name:", variable_name)
         if any(node.name == variable_name for node in self.nodes_to_remove):
             print(f"Marking local variable '{variable_name}' for removal.")
             self.removals.append((ctx.start.start, ctx.stop.stop))
 
-    def enterSimpleStatement(self, ctx: SolidityParser.ExpressionStatementContext):
+    def enterSimpleStatement(self,
+                             ctx: SolidityParser.ExpressionStatementContext):
         expression_text = ctx.getText()
-#        print(ctx.getChild(0).getText())
-#        print(ctx.getChild(1).getText())
-#        print(self.nodes_to_remove)
-#        for node in self.nodes_to_remove:
-#            print(node.name)
         if any(node.name in expression_text for node in self.nodes_to_remove):
             print(f"Marking simple statement containing '{expression_text}' for removal.")
             self.removals.append((ctx.start.start, ctx.stop.stop))
@@ -249,14 +245,8 @@ class DeclarationRemovalListener(SolidityListener):
     def enterReturnStatement(self, ctx: SolidityParser.ReturnStatementContext):
         return_statement = ctx.getText()
         if any(node.name in return_statement for node in self.nodes_to_remove):
-#            print(f"Marking RETURN statement containing '{return_statement}' for removal.")
             self.removals.append((ctx.start.start, ctx.stop.stop))
 
-#    def enterExpression(self, ctx: SolidityParser.ExpressionContext):
-#        expression_text = ctx.getText()
-#        if any(node.name in expression_text for node in self.nodes_to_remove):
-#            print(f"Marking expression containing '{expression_text}' for removal.")
-#            self.removals.append((ctx.start.start, ctx.stop.stop))
 
 
 def remove_functions(source_code, tree, nodes_to_remove):
@@ -320,12 +310,15 @@ class Interesting():
         self.content_ = content
         self.original_findings = findings
         self.file_path = file_path
-        self.removed_nodes = set()
-        self.cache = {}
         lexer = SolidityLexer(InputStream(content))
         stream = CommonTokenStream(lexer)
         parser = SolidityParser(stream)
         self.tree = parser.sourceUnit()
+        self.reset_state()
+
+    def reset_state(self):
+        self.cache = {}
+        self.removed_nodes = set()
 
     def remove_functions(self, nodes):
         nodes_to_remove = [
@@ -513,6 +506,7 @@ class Interesting():
 
 
 def perform_dd(interesting, node_type, parallel: bool = True):
+    print(f"Begin {node_type}")
     dd_cls = picire.ParallelDD if parallel else picire.DD
     nodes = [n for n in interesting.graph.nodes()
              if n.node_type == node_type]
@@ -522,12 +516,13 @@ def perform_dd(interesting, node_type, parallel: bool = True):
         cache=picire.cache.ConfigCache(),
         config_iterator=picire.iterator.CombinedIterator(
             False, picire.iterator.skip,
-            picire.iterator.backward
+            picire.iterator.random
         )
     )
     output_nodes = [x for x in dd_obj_functions(nodes)]
     interesting.update_graph([f for f in nodes
                               if f not in output_nodes])
+    interesting.reset_state()
 
 
 def main():
@@ -553,8 +548,8 @@ def main():
     interesting = Interesting(graph, original_content,
                               original_findings, sol_file_path,
                               'functions')
-    modes = ["var", "event", "state_var", "contract", "function"]
-    for mode in modes[::-1]:
+    modes = ["function", "contract", "event", "state_var"]
+    for mode in modes:
         parallel = mode != "contract"
         mode_map = {
             "function": "functions",
