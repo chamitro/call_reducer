@@ -26,6 +26,7 @@ if args.consider:
 else:
     consider_findings = {}
 
+
 # Slither analysis
 def run_slither_analysis(file_path):
     """Runs Slither on a given Solidity file and captures the output."""
@@ -40,6 +41,7 @@ def run_slither_analysis(file_path):
         print(f"Error Output: {e.stderr}")
         return None
 
+
 # Parsing Slither findings
 def parse_slither_findings(slither_output, consider_findings):
     """Parses the Slither output to only count occurrences of specified patterns."""
@@ -50,6 +52,7 @@ def parse_slither_findings(slither_output, consider_findings):
         if findings_count > 0:
             findings[key] = findings_count
     return findings
+
 
 # Comparing Slither outputs
 def compare_slither_outputs(original_findings, modified_findings, consider_findings):
@@ -63,55 +66,61 @@ def compare_slither_outputs(original_findings, modified_findings, consider_findi
 
 
 # ANTLR listener for removing contract and function definitions
-class RemovalListener(SolidityListener):
+class FunctionRemovalListener(SolidityListener):
     def __init__(self, nodes_to_remove):
         super().__init__()
         self.removals = []
         self.nodes_to_remove = nodes_to_remove
 
-    def enterFunctionDefinition(self, ctx: SolidityParser.FunctionDefinitionContext):
+    def enterFunctionDefinition(self,
+                                ctx: SolidityParser.FunctionDefinitionContext):
         functions_name = ctx.getChild(0).getText()
         function_name = functions_name.replace("function", "").strip()
         if any(node.name == function_name for node in self.nodes_to_remove):
-#            print(f"Marking function '{function_name}' for removal.")
             self.removals.append((ctx.start.start, ctx.stop.stop))
 
-    def enterModifierInvocation(self, ctx: SolidityParser.ModifierInvocationContext):
-        if any(node.name == ctx.getChild(0).getText() for node in self.nodes_to_remove):
-#            print(f"Marking modifier invocation '{ctx.getChild(0).getText()}' for removal.")
+    def enterModifierInvocation(self,
+                                ctx: SolidityParser.ModifierInvocationContext):
+        if any(node.name == ctx.getChild(0).getText()
+               for node in self.nodes_to_remove):
             self.removals.append((ctx.start.start, ctx.stop.stop))
 
-    def enterModifierDefinition(self, ctx: SolidityParser.ModifierDefinitionContext):
+    def enterModifierDefinition(self,
+                                ctx: SolidityParser.ModifierDefinitionContext):
         self.removals.append((ctx.start.start, ctx.stop.stop))
 
-    def enterExpressionStatement(self, ctx: SolidityParser.ExpressionStatementContext):
+    def enterExpressionStatement(
+            self, ctx: SolidityParser.ExpressionStatementContext):
         text = ctx.getText()
         if any(node.name + "(" in text for node in self.nodes_to_remove):
             equal_sign_index = text.find('=')
             if equal_sign_index != -1:
                 start = ctx.start.start + equal_sign_index + 1
                 stop = ctx.stop.stop
-                if stop < ctx.stop.stop and text[stop - ctx.start.start] == ';':
+                if (stop < ctx.stop.stop
+                        and text[stop - ctx.start.start] == ';'):
                     stop += 1
                 stop -= 1
                 self.removals.append((start, stop))
             else:
                 self.removals.append((ctx.start.start, ctx.stop.stop))
 
-    def enterVariableDeclarationStatement(self, ctx: SolidityParser.VariableDeclarationStatementContext):
+    def enterVariableDeclarationStatement(
+            self, ctx: SolidityParser.VariableDeclarationStatementContext):
         text = ctx.getText()
         if any(node.name + "(" in text for node in self.nodes_to_remove):
             equal_sign_index = text.find('=')
             if equal_sign_index != -1:
                 start = ctx.start.start + equal_sign_index + 1
                 stop = ctx.stop.stop
-                if stop < ctx.stop.stop and text[stop - ctx.start.start] == ';':
+                if (stop < ctx.stop.stop and
+                        text[stop - ctx.start.start] == ';'):
                     stop += 1
                 stop -= 1
                 self.removals.append((start, stop))
 
 
-class RemovalListener2(SolidityListener):
+class ContractRemovalListener(SolidityListener):
     def __init__(self, nodes_to_remove, graph):
         super().__init__()
         self.removals = []
@@ -173,8 +182,12 @@ class RemovalListener2(SolidityListener):
                 self.replacements.append((contract_node.name,
                                           new_inheritance_specifiers))
 
-# New ANTLR listener for removing structs, events, state variables, and local variables
-class RemovalListener3(SolidityListener):
+
+class DeclarationRemovalListener(SolidityListener):
+    """
+    New ANTLR listener for removing structs, events, state variables,
+    and local variables.
+    """
     def __init__(self, nodes_to_remove):
         super().__init__()
         self.removals = []
@@ -208,7 +221,7 @@ class RemovalListener3(SolidityListener):
             if isinstance(ctx.getChild(i), SolidityParser.IdentifierContext):
                 variable_name = ctx.getChild(i).getText()
                 break
-        
+
         if variable_name:
 #            print(variable_name)
             if any(node.name == variable_name for node in self.nodes_to_remove):
@@ -244,6 +257,59 @@ class RemovalListener3(SolidityListener):
 #        if any(node.name in expression_text for node in self.nodes_to_remove):
 #            print(f"Marking expression containing '{expression_text}' for removal.")
 #            self.removals.append((ctx.start.start, ctx.stop.stop))
+
+
+def remove_functions(source_code, tree, nodes_to_remove):
+    listener = FunctionRemovalListener(nodes_to_remove)
+    walker = ParseTreeWalker()
+    walker.walk(listener, tree)
+    for start, stop in sorted(listener.removals, reverse=True):
+        code_block = source_code[start:stop + 1]
+        if any(node.name in code_block for node in nodes_to_remove):
+            source_code = source_code[:start] + (len(code_block) * " ") + source_code[stop + 1:]
+    source_code = source_code.replace(r"/\s\s+/g", ' ')
+    modified_source_code = re.sub(r'\n\s*\n', '\n\n', source_code)
+    return modified_source_code
+
+
+def remove_contracts(source_code, nodes_to_remove, inheritance_graph):
+    lexer = SolidityLexer(InputStream(source_code))
+    stream = CommonTokenStream(lexer)
+    parser = SolidityParser(stream)
+    tree = parser.sourceUnit()
+
+    listener = ContractRemovalListener(nodes_to_remove, inheritance_graph)
+    walker = ParseTreeWalker()
+    walker.walk(listener, tree)
+    for start, stop in sorted(listener.removals, reverse=True):
+        source_code = source_code[:start] + (len(source_code[start:stop + 1]) * " ") + source_code[stop + 1:]
+
+    for identifier, new_inheritance_specifiers in listener.replacements:
+        pattern = re.compile(rf"(\b{identifier}\b\s+is\s+)[^{{]*")
+        replacement_text = f"{identifier} is {new_inheritance_specifiers}" if new_inheritance_specifiers else f"{identifier}"
+        source_code = pattern.sub(replacement_text, source_code)
+
+    source_code = source_code.replace(r"/\s\s+/g", ' ')
+    modified_source_code = re.sub(r'\n\s*\n', '\n\n', source_code)
+    return modified_source_code
+
+
+def remove_declarations(source_code, tree, nodes_to_remove):
+    lexer = SolidityLexer(InputStream(source_code))
+    stream = CommonTokenStream(lexer)
+    parser = SolidityParser(stream)
+    tree = parser.sourceUnit()
+
+    listener = DeclarationRemovalListener(nodes_to_remove)
+    walker = ParseTreeWalker()
+    walker.walk(listener, tree)
+    for start, stop in sorted(listener.removals, reverse=True):
+        code_block = source_code[start:stop + 1]
+        if any(node.name in code_block for node in nodes_to_remove):
+            source_code = source_code[:start] + (len(code_block) * " ") + source_code[stop + 1:]
+    source_code = source_code.replace(r"/\s\s+/g", ' ')
+    modified_source_code = re.sub(r'\n\s*\n', '\n\n', source_code)
+    return modified_source_code
 
 
 class Interesting():
@@ -302,23 +368,12 @@ class Interesting():
             res = picire.Outcome.PASS
         self.cache[fr_nodes] = res
         return res
-    
+
     def remove_other_nodes(self, nodes):
-        node_types = ['struct', 'event', 'state_var', 'var']
         nodes_to_remove = [
             n for n in self.graph.nodes()
-            if n.node_type in node_types and n not in nodes
+            if n.node_type == self.mode and n not in nodes
         ]
-#        for n in self.graph.nodes():
-#            print(n.node_type)
-#            if n.node_type in node_types:
-#                print(n)
-#             
-#        print(self.graph.nodes())
-#        print(node_types)
-        print(nodes_to_remove)
-#        print(nodes)
-#        print(self.content)
         fr_nodes = frozenset(nodes)
         if fr_nodes in self.cache:
             return self.cache.get(fr_nodes)
@@ -338,15 +393,14 @@ class Interesting():
     def __call__(self, nodes, config_id):
         if self.mode == 'functions':
             return self.remove_functions(nodes)
-        if self.mode == 'contracts':
+        elif self.mode == 'contracts':
             return self.remove_contracts(nodes)
-        if self.mode == 'other_nodes':
+        else:
             return self.remove_other_nodes(nodes)
-        raise NotImplementedError(f"Unimplemented mode {self.mode}")
 
     def test_removing_functions(self, nodes_to_remove, content):
         nodes_to_remove = set(nodes_to_remove).union(self.removed_nodes)
-        modified_content = remove_with_antlr(self.content_, self.tree,
+        modified_content = remove_functions(self.content_, self.tree,
                                              nodes_to_remove)
         name = ''.join(random.sample(string.ascii_letters + string.digits, 5))
         temp_file_path = f"{name}.sol"
@@ -358,7 +412,6 @@ class Interesting():
                 modified_slither_output, consider_findings)
             if compare_slither_outputs(self.original_findings,
                                        modified_findings, consider_findings):
-#                print("Keep property: Writing modified content to temp file")
                 os.remove(temp_file_path)
                 self.removed_nodes = nodes_to_remove
                 return modified_content
@@ -370,9 +423,9 @@ class Interesting():
             return None
 
     def test_removing_contracts(self, nodes_to_remove, content):
-        temp_graph = self.graph.copy()  # Create a temporary copy of the graph
-        modified_content = remove_with_antlr2(self.content,
-                                              nodes_to_remove, temp_graph)
+        temp_graph = self.graph.copy()
+        modified_content = remove_contracts(self.content,
+                                            nodes_to_remove, temp_graph)
         name = ''.join(random.sample(string.ascii_letters + string.digits, 5))
         temp_file_path = f"{name}.sol"
         with open(temp_file_path, 'w') as temp_file:
@@ -393,10 +446,8 @@ class Interesting():
             return None
 
     def test_removing_other_nodes(self, nodes_to_remove, content):
-#        nodes_to_remove = set(nodes_to_remove).union(self.removed_nodes)
-#        print(f"INSIDE TESTING_REMOVING_OTHER_NODES the nodes are:", nodes_to_remove)
-        modified_content = remove_with_antlr3(self.content, self.tree,
-                                                         nodes_to_remove)
+        modified_content = remove_declarations(self.content, self.tree,
+                                               nodes_to_remove)
         name = ''.join(random.sample(string.ascii_letters + string.digits, 5))
         temp_file_path = f"{name}.sol"
         with open(temp_file_path, 'w') as temp_file:
@@ -457,75 +508,29 @@ class Interesting():
         self.graph.remove_nodes_from(nodes)
 
     def update_file(self, new_content):
-#        print("Updating file with new content")
-#        print(new_content)
         with open(self.file_path, 'w') as file:
             file.write(new_content)
-        print("File updated successfully")
 
 
-# Modified remove_with_antlr function
-def remove_with_antlr(source_code, tree, nodes_to_remove):
-    listener = RemovalListener(nodes_to_remove)
-    walker = ParseTreeWalker()
-    walker.walk(listener, tree)
-    for start, stop in sorted(listener.removals, reverse=True):
-        code_block = source_code[start:stop + 1]
-        if any(node.name in code_block for node in nodes_to_remove):
-            source_code = source_code[:start] + (len(code_block) * " ") + source_code[stop + 1:]
-    source_code = source_code.replace(r"/\s\s+/g", ' ')
-    modified_source_code = re.sub(r'\n\s*\n', '\n\n', source_code)
-#    print("Modified source code after removal:")
-#    print(modified_source_code)
-    return modified_source_code
+def perform_dd(interesting, node_type, parallel: bool = True):
+    dd_cls = picire.ParallelDD if parallel else picire.DD
+    nodes = [n for n in interesting.graph.nodes()
+             if n.node_type == node_type]
+    dd_obj_functions = dd_cls(
+        interesting,
+        split=picire.splitter.ZellerSplit(n=4),
+        cache=picire.cache.ConfigCache(),
+        config_iterator=picire.iterator.CombinedIterator(
+            False, picire.iterator.skip,
+            picire.iterator.backward
+        )
+    )
+    output_nodes = [x for x in dd_obj_functions(nodes)]
+    interesting.update_graph([f for f in nodes
+                              if f not in output_nodes])
 
-
-# Modified remove_with_antlr2 function
-def remove_with_antlr2(source_code, nodes_to_remove, inheritance_graph):
-    lexer = SolidityLexer(InputStream(source_code))
-    stream = CommonTokenStream(lexer)
-    parser = SolidityParser(stream)
-    tree = parser.sourceUnit()
-
-    listener = RemovalListener2(nodes_to_remove, inheritance_graph)
-    walker = ParseTreeWalker()
-    walker.walk(listener, tree)
-    for start, stop in sorted(listener.removals, reverse=True):
-        source_code = source_code[:start] + (len(source_code[start:stop + 1]) * " ") + source_code[stop + 1:]
-
-    for identifier, new_inheritance_specifiers in listener.replacements:
-        pattern = re.compile(rf"(\b{identifier}\b\s+is\s+)[^{{]*")
-        replacement_text = f"{identifier} is {new_inheritance_specifiers}" if new_inheritance_specifiers else f"{identifier}"
-        source_code = pattern.sub(replacement_text, source_code)
-
-    source_code = source_code.replace(r"/\s\s+/g", ' ')
-    modified_source_code = re.sub(r'\n\s*\n', '\n\n', source_code)
-#    print("Modified source code after removal:")
-#    print(modified_source_code)
-    return modified_source_code
-
-def remove_with_antlr3(source_code, tree, nodes_to_remove):
-    lexer = SolidityLexer(InputStream(source_code))
-    stream = CommonTokenStream(lexer)
-    parser = SolidityParser(stream)
-    tree = parser.sourceUnit()
-    
-    listener = RemovalListener3(nodes_to_remove)
-#    print("BIKAME STO ANTLR3")
-    walker = ParseTreeWalker()
-    walker.walk(listener, tree)
-    for start, stop in sorted(listener.removals, reverse=True):
-        code_block = source_code[start:stop + 1]
-        if any(node.name in code_block for node in nodes_to_remove):
-            source_code = source_code[:start] + (len(code_block) * " ") + source_code[stop + 1:]
-    source_code = source_code.replace(r"/\s\s+/g", ' ')
-    modified_source_code = re.sub(r'\n\s*\n', '\n\n', source_code)
-#    print("Modified source code after removal:")
-#    print(modified_source_code)
-    return modified_source_code
 
 def main():
-# Record the start time
     start_time = time.time()
     sol_file_path = 'ext_changed.sol'
     graph = build_graph_from_file(sol_file_path)
@@ -548,54 +553,15 @@ def main():
     interesting = Interesting(graph, original_content,
                               original_findings, sol_file_path,
                               'functions')
-    function_nodes = [n for n in graph.nodes()
-                      if n.node_type == "function"]
-    dd_obj_functions = picire.ParallelDD(
-        interesting,
-        split=picire.splitter.ZellerSplit(n=4),
-        cache=picire.cache.ConfigCache(),
-        config_iterator=picire.iterator.CombinedIterator(
-            False, picire.iterator.skip,
-            picire.iterator.random
-        )
-    )
-    output_functions = [x for x in dd_obj_functions(function_nodes)]
-    interesting.update_graph([f for f in function_nodes
-                              if f not in output_functions])
-
-    interesting.mode = "contracts"
-    contract_nodes = [n for n in graph.nodes()
-                      if n.node_type == "contract"]
-    dd_obj_functions = picire.DD(
-        interesting,
-        split=picire.splitter.ZellerSplit(n=4),
-        cache=picire.cache.ConfigCache(),
-        config_iterator=picire.iterator.CombinedIterator(
-            False, picire.iterator.skip,
-            picire.iterator.random
-        )
-    )
-    output_contracts = [x for x in dd_obj_functions(contract_nodes)]
-#    interesting.update_graph([f for f in contract_nodes
-#                              if f not in output_contracts])
-
-    interesting.mode = "other_nodes"
-    other_nodes = [n for n in graph.nodes()
-                   if n.node_type in ['struct', 'event', 'state_var', 'var']]
-#    print(f"OTHER NODES ARE:",other_nodes)
-    dd_obj_other_nodes = picire.DD(
-        interesting,
-        split=picire.splitter.ZellerSplit(n=4),
-        cache=picire.cache.ConfigCache(),
-        config_iterator=picire.iterator.CombinedIterator(
-            False, picire.iterator.skip,
-            picire.iterator.random
-        )
-    )
-    print("PAME")
-    output_other_nodes = [x for x in dd_obj_other_nodes(other_nodes)]
-    interesting.update_graph([o for o in other_nodes
-                              if o not in output_other_nodes])
+    modes = ["var", "event", "state_var", "contract", "function"]
+    for mode in modes[::-1]:
+        parallel = mode != "contract"
+        mode_map = {
+            "function": "functions",
+            "contract": "contracts",
+        }
+        interesting.mode = mode_map.get(mode, mode)
+        perform_dd(interesting, mode, parallel=parallel)
 
     end_time = time.time()
     # Calculate the elapsed time
