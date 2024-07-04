@@ -129,10 +129,13 @@ def perform_dd(interesting, node_filter, parallel: bool = True):
     dd_cls = picire.ParallelDD if parallel else picire.DD
     nodes = [n for n in interesting.graph.nodes()
              if node_filter(n)]
+    cache = picire.parallel_dd.SharedCache(
+        picire.cache.ConfigCache(cache_fail=True))
     dd_obj = dd_cls(
         interesting,
-        split=picire.splitter.ZellerSplit(n=4),
-        cache=picire.cache.ConfigCache(),
+        cache=cache,
+        split=picire.splitter.BalancedSplit(n=2),
+        dd_star=True,
         config_iterator=picire.iterator.CombinedIterator(
             False, picire.iterator.skip,
             picire.iterator.random
