@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "greduce"
+version = "1.0"
+authors = [
+    {name = "Charalambos Mitropoulos", email = "charalambos.mitropoulos@gmail.com"},
+    {name = "Thodoris Sotiropoulos", email = "theosotr@windowslive.com"},
+]
+description = "Graph-based Program Reduction"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: GPL v3.0 License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+]
+dependencies = [
+    "networkx",
+]
+
+[tool.setuptools]
+packages = [
+  "reducer",
+  "reducer.grammars",
+  "reducer.grammars.solidity",
+]
+py-modules = ["main"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+src = ["resources/*"]
+
+[project.scripts]
+greduce = "main:main"
+
+[tool.pytest.ini_options]
+addopts = "-vv"
+testpaths = [
+    "tests",
+]
