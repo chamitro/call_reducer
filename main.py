@@ -53,7 +53,7 @@ def main():
                               prop_checker, args.language)
     passes = [
         ["function"], ["contract"],
-        ["event", "state_var", "struct"]
+        ["event", "state_var", "struct", "var"]
     ]
     for pass_ in passes:
         interesting.mode = pass_
