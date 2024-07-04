@@ -1,10 +1,15 @@
 from typing import NamedTuple, List, Any
-from antlr4 import *
-from SolidityLexer import SolidityLexer
-from SolidityParser import SolidityParser
-from SolidityListener import SolidityListener
+
+from antlr4 import InputStream, CommonTokenStream, ParseTreeWalker
 import networkx as nx
+
 import matplotlib.pyplot as plt
+
+from reducer import utils
+
+from reducer.grammars.solidity.SolidityLexer import SolidityLexer
+from reducer.grammars.solidity.SolidityParser import SolidityParser
+from reducer.grammars.solidity.SolidityListener import SolidityListener
 
 
 class DeclarationNode(NamedTuple):
@@ -25,7 +30,7 @@ class DeclarationNode(NamedTuple):
     __repr__ = __str__
 
 
-class SolidityGraphListener(SolidityListener):
+class SolidityGraphBuilder(SolidityListener):
     def __init__(self):
         super().__init__()
         self.graph = nx.DiGraph()
@@ -133,21 +138,28 @@ class SolidityGraphListener(SolidityListener):
         if parent_node is not None:
             self.graph.add_edge(parent_node, var_node, label='def')
 
+    @staticmethod
+    def build_graph(source_code: str) -> nx.DiGraph:
+        lexer = SolidityLexer(InputStream(source_code))
+        stream = CommonTokenStream(lexer)
+        parser = SolidityParser(stream)
+        tree = parser.sourceUnit()
 
-def build_graph_from_file(file_path):
-    with open(file_path, 'r') as file:
-        source_code = file.read()
+        listener = SolidityGraphBuilder()
+        walker = ParseTreeWalker()
+        walker.walk(listener, tree)
+        return listener.graph
 
-    lexer = SolidityLexer(InputStream(source_code))
-    stream = CommonTokenStream(lexer)
-    parser = SolidityParser(stream)
-    tree = parser.sourceUnit()
 
-    listener = SolidityGraphListener()
-    walker = ParseTreeWalker()
-    walker.walk(listener, tree)
+GRAPH_BUILDERS = {
+    "solidity": SolidityGraphBuilder
+}
 
-    return listener.graph
+
+def build_graph_from_file(file_path: str, language: str) -> nx.DiGraph:
+    content = utils.read_file(file_path)
+    cls = GRAPH_BUILDERS[language]
+    return cls.build_graph(content)
 
 
 if __name__ == '__main__':
