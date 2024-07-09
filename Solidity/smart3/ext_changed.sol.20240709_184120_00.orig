@@ -1,0 +1,61 @@
+pragma solidity ^0.4.11;
+
+library SafeMath {
+
+  function add(uint256 a, uint256 b) internal  returns (uint256) {
+    uint256 c = a + b;
+    assert(c >= a);
+    return c;
+  }
+}
+
+contract Ownable {
+  address public owner;
+
+}
+
+contract ERC20Basic {
+  uint256 public totalSupply;
+
+}
+
+contract BasicToken is ERC20Basic{
+  using SafeMath for uint256;
+
+}
+
+contract MintableToken is Ownable, BasicToken{
+
+  function mint(address _to, uint256 _amount)                   public returns (bool) {
+    totalSupply = totalSupply.add(_amount);
+
+    return true;
+  }
+
+}
+
+contract MintableMasterToken is MintableToken{
+
+    function mint(address _to, uint256 _amount)                               public returns (bool) {
+        address oldOwner = owner;
+        owner = msg.sender;
+
+        bool result = super.mint(_to, _amount);
+
+        owner = oldOwner;
+
+        return result;
+    }
+
+}
+
+contract CAToken is MintableMasterToken{
+
+    function mintToAddressesAndAmounts(address[] addresses, uint256[] amounts) public                               {
+        require(addresses.length == amounts.length);
+        for (uint i = 0; i < addresses.length; i++) {
+            require(mint(addresses[i], amounts[i]));
+        }
+    }
+
+}

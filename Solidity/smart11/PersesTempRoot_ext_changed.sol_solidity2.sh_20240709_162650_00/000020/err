@@ -1,0 +1,30 @@
+'solc --version' running
+'solc ext_changed.sol --combined-json abi,ast,bin,bin-runtime,srcmap,srcmap-runtime,userdoc,devdoc --allow-paths .,/home/harry/Documents/call_reducer/Solidity/smart11/PersesTempRoot_ext_changed.sol_solidity2.sh_20240709_162650_00/000020' running
+Traceback (most recent call last):
+  File "/home/harry/.local/bin/slither", line 8, in <module>
+    sys.exit(main())
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/__main__.py", line 727, in main
+    main_impl(all_detector_classes=detectors, all_printer_classes=printers)
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/__main__.py", line 833, in main_impl
+    ) = process_all(filename, args, detector_classes, printer_classes)
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/__main__.py", line 96, in process_all
+    compilations = compile_all(target, **vars(args))
+  File "/home/harry/.local/lib/python3.8/site-packages/crytic_compile/crytic_compile.py", line 718, in compile_all
+    compilations.append(CryticCompile(target, **kwargs))
+  File "/home/harry/.local/lib/python3.8/site-packages/crytic_compile/crytic_compile.py", line 207, in __init__
+    self._compile(**kwargs)
+  File "/home/harry/.local/lib/python3.8/site-packages/crytic_compile/crytic_compile.py", line 629, in _compile
+    self._platform.compile(self, **kwargs)
+  File "/home/harry/.local/lib/python3.8/site-packages/crytic_compile/platform/solc.py", line 151, in compile
+    targets_json = _get_targets_json(compilation_unit, self._target, **kwargs)
+  File "/home/harry/.local/lib/python3.8/site-packages/crytic_compile/platform/solc.py", line 280, in _get_targets_json
+    return _run_solc(
+  File "/home/harry/.local/lib/python3.8/site-packages/crytic_compile/platform/solc.py", line 572, in _run_solc
+    stdout_, stderr_ = process.communicate()
+  File "/usr/lib/python3.8/subprocess.py", line 1028, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+  File "/usr/lib/python3.8/subprocess.py", line 1868, in _communicate
+    ready = selector.select(timeout)
+  File "/usr/lib/python3.8/selectors.py", line 415, in select
+    fd_event_list = self._selector.poll(timeout)
+KeyboardInterrupt

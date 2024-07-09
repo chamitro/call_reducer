@@ -1,0 +1,4 @@
+interface BurnableToken {
+}
+contract FeeBurner{
+}

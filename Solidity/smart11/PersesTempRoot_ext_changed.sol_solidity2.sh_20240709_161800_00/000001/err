@@ -1,0 +1,30 @@
+Traceback (most recent call last):
+  File "/home/harry/.local/bin/slither", line 5, in <module>
+    from slither.__main__ import main
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/__init__.py", line 4, in <module>
+    from .slither import Slither
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/slither.py", line 4, in <module>
+    from crytic_compile import CryticCompile, InvalidCompilation
+  File "/home/harry/.local/lib/python3.8/site-packages/crytic_compile/__init__.py", line 4, in <module>
+    from .crytic_compile import CryticCompile, compile_all, is_supported
+  File "/home/harry/.local/lib/python3.8/site-packages/crytic_compile/crytic_compile.py", line 7, in <module>
+    import json
+  File "/usr/lib/python3.8/json/__init__.py", line 106, in <module>
+    from .decoder import JSONDecoder, JSONDecodeError
+  File "/usr/lib/python3.8/json/decoder.py", line 5, in <module>
+    from json import scanner
+  File "/usr/lib/python3.8/json/scanner.py", line 13, in <module>
+    (re.VERBOSE | re.MULTILINE | re.DOTALL))
+  File "/usr/lib/python3.8/enum.py", line 935, in __or__
+    result = self.__class__(self._value_ | self.__class__(other)._value_)
+  File "/usr/lib/python3.8/enum.py", line 339, in __call__
+    return cls.__new__(cls, value)
+  File "/usr/lib/python3.8/enum.py", line 653, in __new__
+    result = cls._missing_(value)
+  File "/usr/lib/python3.8/enum.py", line 896, in _missing_
+    new_member = cls._create_pseudo_member_(value)
+  File "/usr/lib/python3.8/enum.py", line 908, in _create_pseudo_member_
+    _, extra_flags = _decompose(cls, value)
+  File "/usr/lib/python3.8/enum.py", line 999, in _decompose
+    for v, m in list(flag._value2member_map_.items())
+KeyboardInterrupt

@@ -1,0 +1,19 @@
+'solc --version' running
+'solc ext_changed.sol --combined-json abi,ast,bin,bin-runtime,srcmap,srcmap-runtime,userdoc,devdoc,hashes,compact-format --allow-paths .,/home/harry/Documents/call_reducer/Solidity/smart4/PersesTempRoot_ext_changed.sol_solidity2.sh_20240709_183229_00/000027' running
+Compilation warnings/errors on ext_changed.sol:
+ext_changed.sol:1:1: Warning: Source file does not specify required compiler version!Consider adding "pragma solidity ^0.4.21;"
+library SafeMath {
+^ (Relevant source part starts here and spans across multiple lines).
+
+INFO:Detectors:
+solc-0.4.21 is not recommended for deployment
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#incorrect-versions-of-solidity
+INFO:Detectors:
+receiveApproval(address,uint256,address,bytes) should be declared external:
+	- ApproveAndCallFallBack.receiveApproval(address,uint256,address,bytes) (ext_changed.sol#8)
+approveAndCall(address,uint256,bytes) should be declared external:
+	- NRM.approveAndCall(address,uint256,bytes) (ext_changed.sol#14-15)
+multisend(address[],uint256[]) should be declared external:
+	- NRM.multisend(address[],uint256[]) (ext_changed.sol#16-17)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#public-function-that-could-be-declared-external
+INFO:Slither:ext_changed.sol analyzed (5 contracts with 93 detectors), 4 result(s) found

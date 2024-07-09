@@ -1,0 +1,13 @@
+library SafeMath {
+}
+contract ERC20Interface {
+}
+contract ApproveAndCallFallBack {
+    function receiveApproval(                                             bytes     ) public;
+}
+contract NRM is ERC20Interface, Owned{
+    function approveAndCall(address spender, uint tokens, bytes data) public            returns (bool success)
+                                                  ;
+    function multisend(address[]                     ) public           returns (uint256)
+                 ;
+}

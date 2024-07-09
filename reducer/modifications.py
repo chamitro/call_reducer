@@ -97,7 +97,7 @@ class SolidityDeclarationRemoval(SolidityListener, ASTRemoval):
             if any((node.name == variable_name
                     and node.node_type == "state_var")
                    for node in self.nodes_to_remove):
-                print(f"Marking state variable '{variable_name}' for removal.")
+#                print(f"Marking state variable '{variable_name}' for removal.")
                 self.removals.append((ctx.start.start, ctx.stop.stop))
 
     def enterSimpleStatement(self,

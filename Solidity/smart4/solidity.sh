@@ -6,7 +6,7 @@
 start_time=$(date +%s)
 
 # Run the Solidity compiler on ext_changed.sol and redirect stderr to a file
-slither after_dd_final.py_ext_changed.sol 2> err
+slither initial_ext_changed.sol 2> err
 
 # Define patterns and their expected counts in an associative array
 declare -A patterns=(

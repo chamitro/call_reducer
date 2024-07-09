@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "/home/harry/.local/bin/slither", line 5, in <module>
+    from slither.__main__ import main
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/__main__.py", line 24, in <module>
+    from slither.printers import all_printers
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/printers/all_printers.py", line 21, in <module>
+    from .guidance.echidna import Echidna
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/printers/guidance/echidna.py", line 247, in <module>
+    ) -> Tuple[Dict[str, Dict[str, List]], Dict[str, Dict[str, Dict]]]:
+  File "/usr/lib/python3.8/typing.py", line 258, in inner
+    return cached(*args, **kwds)
+KeyboardInterrupt

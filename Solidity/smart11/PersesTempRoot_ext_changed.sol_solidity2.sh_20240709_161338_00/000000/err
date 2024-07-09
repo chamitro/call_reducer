@@ -1,0 +1,38 @@
+'solc --version' running
+'solc ext_changed.sol --combined-json abi,ast,bin,bin-runtime,srcmap,srcmap-runtime,userdoc,devdoc --allow-paths .,/home/harry/Documents/call_reducer/Solidity/smart11/PersesTempRoot_ext_changed.sol_solidity2.sh_20240709_161338_00/000000' running
+Compilation warnings/errors on ext_changed.sol:
+ext_changed.sol:3:36: Warning: Unused local variable
+    function transfer(address _to, uint256 _value)
+                                   ^------------^
+ext_changed.sol:3:23: Warning: Unused local variable
+    function transfer(address _to, uint256 _value)
+                      ^---------^
+ext_changed.sol:22:21: Warning: Unused local variable
+    function revoke(address _holder) public           {
+                    ^-------------^
+
+INFO:Detectors:
+Trustee.revoke(address) (ext_changed.sol#22-25) ignores return value by stox.transfer(msg.sender,refund) (ext_changed.sol#24)
+Trustee.unlockVestedTokens() (ext_changed.sol#26-36) ignores return value by stox.transfer(msg.sender,transferable) (ext_changed.sol#35)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#unchecked-transfer
+INFO:Detectors:
+Trustee.stox (ext_changed.sol#21) is never initialized. It is used in:
+	- Trustee.revoke(address) (ext_changed.sol#22-25)
+	- Trustee.unlockVestedTokens() (ext_changed.sol#26-36)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#uninitialized-state-variables
+INFO:Detectors:
+Trustee.revoke(address).refund (ext_changed.sol#23) is a local variable never initialized
+Trustee.unlockVestedTokens().transferable (ext_changed.sol#31) is a local variable never initialized
+Trustee.unlockVestedTokens().vested (ext_changed.sol#27) is a local variable never initialized
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#uninitialized-local-variables
+INFO:Detectors:
+SaferMath.add(uint256,uint256) (ext_changed.sol#11-15) is never used and should be removed
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#dead-code
+INFO:Detectors:
+Pragma version^0.4.11 (ext_changed.sol#1) allows old versions
+solc-0.4.11 is not recommended for deployment
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#incorrect-versions-of-solidity
+INFO:Detectors:
+Trustee.stox (ext_changed.sol#21) should be constant 
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#state-variables-that-could-be-declared-constant
+INFO:Slither:ext_changed.sol analyzed (4 contracts with 93 detectors), 10 result(s) found

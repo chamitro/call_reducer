@@ -1,0 +1,37 @@
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 3023, in _dep_map
+    return self.__dep_map
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 2817, in __getattr__
+    raise AttributeError(attr)
+AttributeError: _DistInfoDistribution__dep_map
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/harry/.local/bin/slither", line 8, in <module>
+    sys.exit(main())
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/__main__.py", line 727, in main
+    main_impl(all_detector_classes=detectors, all_printer_classes=printers)
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/__main__.py", line 741, in main_impl
+    args = parse_args(all_detector_classes, all_printer_classes)
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/__main__.py", line 300, in parse_args
+    version=require("slither-analyzer")[0].version,
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 901, in require
+    needed = self.resolve(parse_requirements(requirements))
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 795, in resolve
+    new_requirements = dist.requires(req.extras)[::-1]
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 2738, in requires
+    dm = self._dep_map
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 3025, in _dep_map
+    self.__dep_map = self._compute_dependencies()
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 3035, in _compute_dependencies
+    reqs.extend(parse_requirements(req))
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 3096, in parse_requirements
+    yield Requirement(line)
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 3107, in __init__
+    project_name = safe_name(self.name)
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 1323, in safe_name
+    return re.sub('[^A-Za-z0-9.]+', '-', name)
+  File "/usr/lib/python3.8/re.py", line 210, in sub
+    return _compile(pattern, flags).sub(repl, string, count)
+KeyboardInterrupt
