@@ -1,0 +1,136 @@
+'solc --version' running
+'solc initial_ext_changed.sol --combined-json abi,ast,bin,bin-runtime,srcmap,srcmap-runtime,userdoc,devdoc,hashes,compact-format --allow-paths .,/home/harry/Documents/call_reducer/Solidity/smart25/PersesTempRoot_initial_ext_changed.sol_solidity.sh_20240709_235952_00/000329' running
+Compilation warnings/errors on initial_ext_changed.sol:
+initial_ext_changed.sol:1:1: Warning: Source file does not specify required compiler version!Consider adding "pragma solidity ^0.4.23;"
+contract Ownable {
+^ (Relevant source part starts here and spans across multiple lines).
+initial_ext_changed.sol:71:9: Warning: Unused local variable.
+        address oldOwner = rabbitToOwner[_tokenId];
+        ^--------------^
+initial_ext_changed.sol:90:28: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+    function setTokenBunny(uint32 mother, uint32  sire, uint birthblock, uint birthCount, uint birthLastTime, uint genome, address _owner, uint DNK)
+                           ^-----------^
+initial_ext_changed.sol:90:43: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+    function setTokenBunny(uint32 mother, uint32  sire, uint birthblock, uint birthCount, uint birthLastTime, uint genome, address _owner, uint DNK)
+                                          ^----------^
+initial_ext_changed.sol:90:57: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+    function setTokenBunny(uint32 mother, uint32  sire, uint birthblock, uint birthCount, uint birthLastTime, uint genome, address _owner, uint DNK)
+                                                        ^-------------^
+initial_ext_changed.sol:90:74: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+    function setTokenBunny(uint32 mother, uint32  sire, uint birthblock, uint birthCount, uint birthLastTime, uint genome, address _owner, uint DNK)
+                                                                         ^-------------^
+initial_ext_changed.sol:90:91: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+    function setTokenBunny(uint32 mother, uint32  sire, uint birthblock, uint birthCount, uint birthLastTime, uint genome, address _owner, uint DNK)
+                                                                                          ^----------------^
+initial_ext_changed.sol:90:111: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+    function setTokenBunny(uint32 mother, uint32  sire, uint birthblock, uint birthCount, uint birthLastTime, uint genome, address _owner, uint DNK)
+                                                                                                              ^---------^
+initial_ext_changed.sol:90:140: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+    function setTokenBunny(uint32 mother, uint32  sire, uint birthblock, uint birthCount, uint birthLastTime, uint genome, address _owner, uint DNK)
+                                                                                                                                           ^------^
+initial_ext_changed.sol:208:9: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+        uint32 mother,
+        ^-----------^
+initial_ext_changed.sol:209:9: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+        uint32 sire,
+        ^---------^
+initial_ext_changed.sol:210:9: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+        uint birthblock,
+        ^-------------^
+initial_ext_changed.sol:211:9: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+        uint birthCount,
+        ^-------------^
+initial_ext_changed.sol:212:9: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+        uint birthLastTime,
+        ^----------------^
+initial_ext_changed.sol:214:9: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+        uint genome,
+        ^---------^
+initial_ext_changed.sol:215:9: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+        bool interbreed,
+        ^-------------^
+initial_ext_changed.sol:216:9: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+        uint leftTime,
+        ^-----------^
+initial_ext_changed.sol:217:9: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+        uint lastTime,
+        ^-----------^
+initial_ext_changed.sol:218:9: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+        uint price,
+        ^--------^
+initial_ext_changed.sol:219:9: Warning: Unused function parameter. Remove or comment out the variable name to silence this warning.
+        uint motherSumm
+        ^-------------^
+initial_ext_changed.sol:69:5: Warning: Function state mutability can be restricted to view
+    function transfer(address _to, uint32 _tokenId) public {
+    ^ (Relevant source part starts here and spans across multiple lines).
+initial_ext_changed.sol:74:5: Warning: Function state mutability can be restricted to view
+    function transferFrom(address _from, address _to, uint32 _tokenId) public                   returns(bool) {
+    ^ (Relevant source part starts here and spans across multiple lines).
+
+INFO:Detectors:
+Rabbit (initial_ext_changed.sol#54-223) contract sets array length with a user-controlled value:
+	- ownerBunnies[owner].push(_tokenId) (initial_ext_changed.sol#66)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#array-length-assignment
+INFO:Detectors:
+Rabbit.removeTokenList(address,uint32) (initial_ext_changed.sol#59-64) is never used and should be removed
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#dead-code
+INFO:Detectors:
+solc-0.4.23 is not recommended for deployment
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#incorrect-versions-of-solidity
+INFO:Detectors:
+Parameter Ownable.transferOwnerMoney(address)._ownerMoney (initial_ext_changed.sol#11) is not in mixedCase
+Parameter Rabbit.ownerOf(uint32)._tokenId (initial_ext_changed.sol#56) is not in mixedCase
+Parameter Rabbit.removeTokenList(address,uint32)._owner (initial_ext_changed.sol#59) is not in mixedCase
+Parameter Rabbit.removeTokenList(address,uint32)._tokenId (initial_ext_changed.sol#59) is not in mixedCase
+Parameter Rabbit.addTokenList(address,uint32)._tokenId (initial_ext_changed.sol#65) is not in mixedCase
+Parameter Rabbit.transfer(address,uint32)._to (initial_ext_changed.sol#69) is not in mixedCase
+Parameter Rabbit.transfer(address,uint32)._tokenId (initial_ext_changed.sol#69) is not in mixedCase
+Parameter Rabbit.transferFrom(address,address,uint32)._from (initial_ext_changed.sol#74) is not in mixedCase
+Parameter Rabbit.transferFrom(address,address,uint32)._to (initial_ext_changed.sol#74) is not in mixedCase
+Parameter Rabbit.transferFrom(address,address,uint32)._tokenId (initial_ext_changed.sol#74) is not in mixedCase
+Function Rabbit.setTotalBunny_id(uint256) (initial_ext_changed.sol#86-89) is not in mixedCase
+Parameter Rabbit.setTotalBunny_id(uint256)._totalBunny (initial_ext_changed.sol#86) is not in mixedCase
+Parameter Rabbit.setTokenBunny(uint32,uint32,uint256,uint256,uint256,uint256,address,uint256)._owner (initial_ext_changed.sol#90) is not in mixedCase
+Parameter Rabbit.setTokenBunny(uint32,uint32,uint256,uint256,uint256,uint256,address,uint256).DNK (initial_ext_changed.sol#90) is not in mixedCase
+Parameter Rabbit.relocateToken(uint32,uint32,uint32,uint256,uint256,uint256,uint256,address,uint256)._owner (initial_ext_changed.sol#103) is not in mixedCase
+Parameter Rabbit.relocateToken(uint32,uint32,uint32,uint256,uint256,uint256,uint256,address,uint256).DNK (initial_ext_changed.sol#104) is not in mixedCase
+Parameter Rabbit.setDNK(uint32,uint256)._bunny (initial_ext_changed.sol#110) is not in mixedCase
+Parameter Rabbit.setMotherCount(uint32,uint256)._bunny (initial_ext_changed.sol#114) is not in mixedCase
+Parameter Rabbit.setRabbitSirePrice(uint32,uint256)._bunny (initial_ext_changed.sol#118) is not in mixedCase
+Parameter Rabbit.setAllowedChangeSex(uint32,bool)._bunny (initial_ext_changed.sol#122) is not in mixedCase
+Parameter Rabbit.setTotalSalaryBunny(uint32,uint256)._bunny (initial_ext_changed.sol#126) is not in mixedCase
+Parameter Rabbit.setRabbitMother(uint32,uint32[5])._m (initial_ext_changed.sol#130) is not in mixedCase
+Parameter Rabbit.setGenome(uint32,uint256)._bunny (initial_ext_changed.sol#133) is not in mixedCase
+Parameter Rabbit.setParent(uint32,uint32,uint32)._bunny (initial_ext_changed.sol#136) is not in mixedCase
+Parameter Rabbit.setBirthLastTime(uint32,uint256)._bunny (initial_ext_changed.sol#140) is not in mixedCase
+Parameter Rabbit.setBirthCount(uint32,uint256)._bunny (initial_ext_changed.sol#143) is not in mixedCase
+Parameter Rabbit.setBirthblock(uint32,uint256)._bunny (initial_ext_changed.sol#146) is not in mixedCase
+Parameter Rabbit.setGiffBlock(uint32,bool)._bunny (initial_ext_changed.sol#149) is not in mixedCase
+Parameter Rabbit.setOwnerGennezise(address,bool)._to (initial_ext_changed.sol#152) is not in mixedCase
+Parameter Rabbit.getOwnerGennezise(address)._to (initial_ext_changed.sol#155) is not in mixedCase
+Parameter Rabbit.getGiffBlock(uint32)._bunny (initial_ext_changed.sol#158) is not in mixedCase
+Parameter Rabbit.getAllowedChangeSex(uint32)._bunny (initial_ext_changed.sol#161) is not in mixedCase
+Parameter Rabbit.getRabbitSirePrice(uint32)._bunny (initial_ext_changed.sol#164) is not in mixedCase
+Parameter Rabbit.balanceOf(address)._owner (initial_ext_changed.sol#167) is not in mixedCase
+Parameter Rabbit.getMotherCount(uint32)._mother (initial_ext_changed.sol#170) is not in mixedCase
+Parameter Rabbit.getTotalSalaryBunny(uint32)._bunny (initial_ext_changed.sol#173) is not in mixedCase
+Parameter Rabbit.getTokenBunny(uint32)._bunny (initial_ext_changed.sol#176) is not in mixedCase
+Parameter Rabbit.getSex(uint32)._bunny (initial_ext_changed.sol#185) is not in mixedCase
+Parameter Rabbit.getGenome(uint32)._bunny (initial_ext_changed.sol#191) is not in mixedCase
+Parameter Rabbit.getParent(uint32)._bunny (initial_ext_changed.sol#194) is not in mixedCase
+Parameter Rabbit.getBirthLastTime(uint32)._bunny (initial_ext_changed.sol#198) is not in mixedCase
+Parameter Rabbit.getBirthCount(uint32)._bunny (initial_ext_changed.sol#201) is not in mixedCase
+Parameter Rabbit.getBirthblock(uint32)._bunny (initial_ext_changed.sol#204) is not in mixedCase
+Parameter Rabbit.getBunnyInfo(uint32)._bunny (initial_ext_changed.sol#207) is not in mixedCase
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#conformance-to-solidity-naming-conventions
+INFO:Detectors:
+Ownable.privAddress (initial_ext_changed.sol#4) is never used in Rabbit (initial_ext_changed.sol#54-223)
+Ownable.addressAdmixture (initial_ext_changed.sol#5) is never used in Rabbit (initial_ext_changed.sol#54-223)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#unused-state-variable
+INFO:Detectors:
+BaseRabbit.pauseSave (initial_ext_changed.sol#31) should be constant 
+Ownable.addressAdmixture (initial_ext_changed.sol#5) should be constant 
+Ownable.privAddress (initial_ext_changed.sol#4) should be constant 
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#state-variables-that-could-be-declared-constant
+INFO:Slither:initial_ext_changed.sol analyzed (6 contracts with 93 detectors), 52 result(s) found

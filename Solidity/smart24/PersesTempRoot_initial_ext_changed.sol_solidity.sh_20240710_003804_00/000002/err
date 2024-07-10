@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "/home/harry/.local/bin/slither", line 5, in <module>
+    from slither.__main__ import main
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/__main__.py", line 22, in <module>
+    from slither.detectors import all_detectors
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/detectors/all_detectors.py", line 11, in <module>
+    from .erc.erc20.arbitrary_send_erc20_no_permit import ArbitrarySendErc20NoPermit
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/detectors/erc/erc20/arbitrary_send_erc20_no_permit.py", line 8, in <module>
+    from .arbitrary_send_erc20 import ArbitrarySendErc20
+  File "<frozen importlib._bootstrap>", line 991, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 975, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 671, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 844, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 976, in get_code
+  File "<frozen importlib._bootstrap_external>", line 640, in _compile_bytecode
+KeyboardInterrupt

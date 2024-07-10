@@ -1,0 +1,83 @@
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 3023, in _dep_map
+    return self.__dep_map
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 2817, in __getattr__
+    raise AttributeError(attr)
+AttributeError: _DistInfoDistribution__dep_map
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/harry/.local/bin/slither", line 8, in <module>
+    sys.exit(main())
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/__main__.py", line 727, in main
+    main_impl(all_detector_classes=detectors, all_printer_classes=printers)
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/__main__.py", line 741, in main_impl
+    args = parse_args(all_detector_classes, all_printer_classes)
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/__main__.py", line 300, in parse_args
+    version=require("slither-analyzer")[0].version,
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 901, in require
+    needed = self.resolve(parse_requirements(requirements))
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 795, in resolve
+    new_requirements = dist.requires(req.extras)[::-1]
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 2738, in requires
+    dm = self._dep_map
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 3025, in _dep_map
+    self.__dep_map = self._compute_dependencies()
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 3035, in _compute_dependencies
+    reqs.extend(parse_requirements(req))
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 3096, in parse_requirements
+    yield Requirement(line)
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 3103, in __init__
+    super(Requirement, self).__init__(requirement_string)
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/packaging/requirements.py", line 90, in __init__
+    req = REQUIREMENT.parseString(requirement_string)
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 1644, in parseString
+    loc, tokens = self._parse( instring, 0 )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 1402, in _parseNoCache
+    loc,tokens = self.parseImpl( instring, preloc, doActions )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 3417, in parseImpl
+    loc, exprtokens = e._parse( instring, loc, doActions )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 1402, in _parseNoCache
+    loc,tokens = self.parseImpl( instring, preloc, doActions )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 3552, in parseImpl
+    ret = e._parse( instring, loc, doActions )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 1402, in _parseNoCache
+    loc,tokens = self.parseImpl( instring, preloc, doActions )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 3417, in parseImpl
+    loc, exprtokens = e._parse( instring, loc, doActions )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 1402, in _parseNoCache
+    loc,tokens = self.parseImpl( instring, preloc, doActions )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 4005, in parseImpl
+    loc, tokens = self.expr._parse( instring, loc, doActions, callPreParse=False )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 1402, in _parseNoCache
+    loc,tokens = self.parseImpl( instring, preloc, doActions )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 3417, in parseImpl
+    loc, exprtokens = e._parse( instring, loc, doActions )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 1428, in _parseNoCache
+    tokens = fn( instring, tokensStart, retTokens )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 1072, in wrapper
+    ret = func(*args[limit[0]:])
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/packaging/requirements.py", line 61, in <lambda>
+    lambda s, l, t: Marker(s[t._original_start:t._original_end])
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/packaging/markers.py", line 276, in __init__
+    self._markers = _coerce_parse_result(MARKER.parseString(marker))
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 1644, in parseString
+    loc, tokens = self._parse( instring, 0 )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 1402, in _parseNoCache
+    loc,tokens = self.parseImpl( instring, preloc, doActions )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 3417, in parseImpl
+    loc, exprtokens = e._parse( instring, loc, doActions )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 1402, in _parseNoCache
+    loc,tokens = self.parseImpl( instring, preloc, doActions )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 3739, in parseImpl
+    return self.expr._parse( instring, loc, doActions, callPreParse=False )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 1402, in _parseNoCache
+    loc,tokens = self.parseImpl( instring, preloc, doActions )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 3400, in parseImpl
+    loc, resultlist = self.exprs[0]._parse( instring, loc, doActions, callPreParse=False )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 1402, in _parseNoCache
+    loc,tokens = self.parseImpl( instring, preloc, doActions )
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/pyparsing.py", line 3550, in parseImpl
+    for e in self.exprs:
+KeyboardInterrupt

@@ -1,0 +1,66 @@
+pragma solidity ^0.4.18;
+
+contract CommonEth {
+
+    enum  Modes {LIVE, TEST}
+
+    address internal ceoAddress;
+    address internal cfoAddress;
+    address internal cooAddress;
+
+    function setNewAddress(address _v2Address) external onlyCEO {
+
+    }
+
+    function CommonEth() public {
+        ceoAddress = msg.sender;
+    }
+
+    modifier onlyCEO() {
+        require(msg.sender == ceoAddress);
+        _;
+    }
+
+    modifier onlyManger() {
+        require(msg.sender == ceoAddress || msg.sender == cooAddress || msg.sender == cfoAddress);
+        _;
+    }
+
+    modifier onlyLiveMode() {
+
+        _;
+    }
+
+    function staffInfo() public view           returns (bool ceo, bool coo, bool cfo, bool qa){
+        return (msg.sender == ceoAddress, msg.sender == cooAddress, msg.sender == cfoAddress,false);
+    }
+
+    function stopLive() public         {
+
+    }
+
+    function startLive() public         {
+
+    }
+
+    function getMangers() public view onlyManger returns (address _ceoAddress, address _cooAddress, address _cfoAddress){
+        return (ceoAddress, cooAddress, cfoAddress);
+    }
+
+    function setCEO(address _newCEO) public onlyCEO {
+        require(_newCEO != address(0));
+        ceoAddress = _newCEO;
+    }
+
+    function setCFO(address _newCFO) public onlyCEO {
+        require(_newCFO != address(0));
+        cfoAddress = _newCFO;
+    }
+
+    function setCOO(address _newCOO) public onlyCEO {
+        require(_newCOO != address(0));
+        cooAddress = _newCOO;
+    }
+
+}
+

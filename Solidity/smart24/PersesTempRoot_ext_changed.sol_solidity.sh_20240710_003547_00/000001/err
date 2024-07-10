@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "/home/harry/.local/bin/slither", line 8, in <module>
+    sys.exit(main())
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/__main__.py", line 727, in main
+    main_impl(all_detector_classes=detectors, all_printer_classes=printers)
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/__main__.py", line 833, in main_impl
+    ) = process_all(filename, args, detector_classes, printer_classes)
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/__main__.py", line 96, in process_all
+    compilations = compile_all(target, **vars(args))
+  File "/home/harry/.local/lib/python3.8/site-packages/crytic_compile/crytic_compile.py", line 740, in compile_all
+    raise NotImplementedError()
+NotImplementedError

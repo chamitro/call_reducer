@@ -1,0 +1,36 @@
+Traceback (most recent call last):
+  File "/home/harry/.local/bin/slither", line 5, in <module>
+    from slither.__main__ import main
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/__init__.py", line 4, in <module>
+    from .slither import Slither
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/slither.py", line 10, in <module>
+    from slither.detectors.abstract_detector import AbstractDetector, DetectorClassification
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/detectors/abstract_detector.py", line 12, in <module>
+    from slither.utils.output import Output, SupportedOutput
+  File "/home/harry/.local/lib/python3.8/site-packages/slither/utils/output.py", line 10, in <module>
+    from pkg_resources import require
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 3254, in <module>
+    def _initialize_master_working_set():
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 3237, in _call_aside
+    f(*args, **kwargs)
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 3266, in _initialize_master_working_set
+    working_set = WorkingSet._build_master()
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 575, in _build_master
+    ws = cls()
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 568, in __init__
+    self.add_entry(entry)
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 624, in add_entry
+    for dist in find_distributions(entry, True):
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 2066, in find_on_path
+    for dist in factory(fullpath):
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 2135, in distributions_from_metadata
+    yield Distribution.from_location(
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 2592, in from_location
+    return cls(
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 2573, in __init__
+    self._version = safe_version(version)
+  File "/usr/lib/python3/dist-packages/pkg_resources/__init__.py", line 1332, in safe_version
+    return str(packaging.version.Version(version))
+  File "/usr/lib/python3/dist-packages/pkg_resources/_vendor/packaging/version.py", line 200, in __init__
+    match = self._regex.search(version)
+KeyboardInterrupt
