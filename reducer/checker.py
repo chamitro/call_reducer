@@ -23,9 +23,10 @@ class PropertyChecker(ABC):
 
 
 class SolidityPropertyChecker(PropertyChecker):
-    def __init__(self, file_path: str, patterns: str, external_cmd: str):
+    def __init__(self, file_path: str, patterns: dict, external_cmd: str, script_path: str):
         super().__init__(file_path, patterns)
         self.external_cmd = external_cmd
+        self.script_path = script_path
 
     def run_test_script(self, file_path: str):
         if self.external_cmd == "slither":
@@ -75,14 +76,21 @@ class SolidityPropertyChecker(PropertyChecker):
         return findings
 
     def run_slither_analysis(self, file_path: str):
-        """Runs Slither on a given Solidity file and captures the output."""
-        command = ["slither", file_path or self.file_path]
+        """Runs the solidity2.sh script and captures the output."""
+        command = [self.script_path]
         try:
             result = subprocess.run(command, capture_output=True, text=True)
-            # Slither typically outputs warnings and errors to stderr.
-            return result.stderr
+            # Capture both stdout and stderr
+            print(f"result is:", result.returncode)
+#            output = result.stdout + result.stderr
+            if result.returncode != 0:
+                print("Script execution failed.")
+                print(f"Command: {' '.join(command)}")
+                print(f"Return Code: {result.returncode}")
+                print(f"Error Output: {result.stderr}")
+            return result.returncode
         except subprocess.CalledProcessError as e:
-            print("Slither analysis failed.")
+            print("Script execution failed.")
             print(f"Command: {' '.join(e.cmd)}")
             print(f"Return Code: {e.returncode}")
             print(f"Error Output: {e.stderr}")
