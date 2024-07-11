@@ -30,12 +30,6 @@ parser.add_argument(
     help="Source file to minimize",
 )
 parser.add_argument(
-    '--consider',
-    type=str,
-    help='Findings to consider in the format "finding=threshold"',
-    default=""
-)
-parser.add_argument(
     '--script',
     type=str,
     help='script to run"',
@@ -45,13 +39,6 @@ args = parser.parse_args()
 
 
 def main():
-    # Convert consider string to a dictionary
-    if args.consider:
-        key, value = args.consider.split('=')
-        patterns = {key: int(value)}
-    else:
-        patterns = {}
-
     start_time = time.time()
     file_path = args.source_file
     print(f"Using source file: {file_path}")
@@ -59,7 +46,7 @@ def main():
     graph = build_graph_from_file(file_path, args.language)
     print(f"Graph built from file: {file_path}")
     print(graph)
-    
+
 #    def print_nodes_with_label(graph, label):
 #        nodes = [node for node in graph.nodes()
 #                 if node.node_type == label]
@@ -81,9 +68,9 @@ def main():
 #    print_nodes_with_label(graph, 'var')
 ##    print_nodes_with_label(graph, 'typedef')
 #    print_nodes_with_label(graph, 'struct')
-#    
+#
 #    print_edges_with_label(graph)
-#    
+#
 #    # Draw and display the graph
 #    plt.figure(figsize=(12, 8))
 #    pos = nx.spring_layout(graph, seed=42)  # Positions for all nodes
@@ -112,9 +99,7 @@ def main():
 #    plt.axis('off')
 #    plt.show()
 
-
-    prop_checker = PROPERTY_CHECKERS[args.language](file_path, patterns,
-                                                    "slither", args.script)
+    prop_checker = PROPERTY_CHECKERS[args.language](file_path, args.script)
     original_content = utils.read_file(file_path)
 
     interesting = Interesting(graph, original_content,

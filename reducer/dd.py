@@ -7,12 +7,12 @@ import picire
 
 from reducer import utils
 from reducer.modifications import AST_REMOVALS
-from reducer.checker import PropertyChecker
+from reducer.checker import BasicPropertyChecker
 
 
 class Interesting():
     def __init__(self, graph: nx.DiGraph,
-                 content: str, prop_checker: PropertyChecker,
+                 content: str, prop_checker: BasicPropertyChecker,
                  language: str):
         self.graph = graph
         self.content = content
@@ -21,11 +21,10 @@ class Interesting():
         self.tree = AST_REMOVALS[language].setup_parse_tree(content)
         self.language = language
 
-        self.original_findings = prop_checker.parse_slither_output(
-            prop_checker.run_test_script(None)) or {}
-        if not self.original_findings:
+        res = prop_checker.run_test_script(None)
+        if res is None or res != 0:
             raise Exception(
-                f"The given property {prop_checker.patterns} does not hold")
+                "The given property does not hold; the test script failed")
 
         self.reset_state()
         self.mode = None
@@ -67,11 +66,10 @@ class Interesting():
         temp_file_path = f"{name}.sol"
         with open(temp_file_path, 'w') as temp_file:
             temp_file.write(modified_content)
-        modified_output = self.prop_checker.run_test_script(temp_file_path)
-        if modified_output:
-            modified_findings = self.prop_checker.parse_output(modified_output)
-            if self.prop_checker.compare_property(
-                    self.original_findings, modified_findings):
+        output = self.prop_checker.run_test_script(temp_file_path)
+        if output is not None:
+            if output == 0:
+                # property is satisfied because script returned zero code 0
                 os.remove(temp_file_path)
                 self.removed_nodes = nodes_to_remove
                 return modified_content
