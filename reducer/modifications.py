@@ -55,7 +55,7 @@ class CDeclarationRemoval(CListener, ASTRemoval):
         function_name = ctx.declarator().directDeclarator().getText()
 #        print(function_name)
         fun2 = function_name.split('(', 1)[0]
-        print(fun2)
+#        print(fun2)
         if any((node.name == fun2 and node.node_type == "function")
                for node in self.nodes_to_remove):
             print("BIKAME STO FUNCTION")
@@ -65,11 +65,11 @@ class CDeclarationRemoval(CListener, ASTRemoval):
         if ctx.initDeclaratorList():
             for declarator in ctx.initDeclaratorList().initDeclarator():
                 variable_name = declarator.declarator().directDeclarator().getText()
-                print(variable_name)
+#                print(variable_name)
                 if any((node.name == variable_name
                     and node.node_type == "var")
                    for node in self.nodes_to_remove):
-                    print(variable_name)
+#                    print(variable_name)
                     self.removals.append((ctx.start.start, ctx.stop.stop))
 
     def enterStructOrUnionSpecifier(self, ctx):
@@ -107,7 +107,7 @@ class CDeclarationRemoval(CListener, ASTRemoval):
 #            print(source_code)
         source_code = source_code.replace(r"/\s\s+/g", ' ')
         modified_source_code = re.sub(r'\n\s*\n', '\n\n', source_code)
-        print(modified_source_code)
+#        print(modified_source_code)
         return modified_source_code
 
     @classmethod

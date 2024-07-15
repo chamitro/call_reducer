@@ -63,8 +63,12 @@ class Interesting():
         modified_content = ast_removal.remove_nodes(self.content_,
                                                     nodes_to_remove,
                                                     self.removed_nodes)
+        print(modified_content)
         name = ''.join(random.sample(string.ascii_letters + string.digits, 5))
-        temp_file_path = f"{name}.sol"
+        if(self.language == 'solidity'):
+            temp_file_path = f"{name}.sol"
+        else:
+            temp_file_path = f"{name}.c"
         with open(temp_file_path, 'w') as temp_file:
             temp_file.write(modified_content)
         output = self.prop_checker.run_test_script(temp_file_path)
