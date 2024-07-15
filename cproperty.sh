@@ -5,13 +5,13 @@
 # Start time
 start_time=$(date +%s)
 source_file=$1
-# Run the Solidity compiler on ext_changed.sol and redirect stderr to a file
-slither initial_ext_changed.sol 2> err
 
 # Define patterns and their expected counts in an associative array
 declare -A patterns=(
-  ["is not in mixedCase"]=21
+  ["implicit declaration of function"]=1
 )
+
+# Flag to track if all patterns match their expected counts
 all_patterns_match=1
 
 if [ -z $source_file ]; then
@@ -21,7 +21,7 @@ fi
 for pattern in "${!patterns[@]}"; do
   expected_count=${patterns[$pattern]}
   # Count occurrences of the pattern
-  count=$(slither $source_file 2>&1 > /dev/null | grep -o "$pattern" | wc -l | xargs)
+  count=$(gcc -c $source_file 2>&1 > /dev/null | grep -o "$pattern" | wc -l | xargs)
 
   # Check if the pattern matches the expected count
   if [ "$count" -eq "$expected_count" ]; then
@@ -71,5 +71,4 @@ else
   echo "One or more patterns do not match their expected counts."
   exit 1
 fi
-
 

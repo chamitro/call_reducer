@@ -11,6 +11,11 @@ from reducer.grammars.solidity.SolidityLexer import SolidityLexer
 from reducer.grammars.solidity.SolidityParser import SolidityParser
 from reducer.grammars.solidity.SolidityListener import SolidityListener
 
+from reducer.grammars.c.CLexer import CLexer
+from reducer.grammars.c.CParser import CParser
+from reducer.grammars.c.CListener import CListener
+
+
 
 class DeclarationNode(NamedTuple):
     name: str
@@ -28,6 +33,134 @@ class DeclarationNode(NamedTuple):
             return node_name
 
     __repr__ = __str__
+
+class CGraphBuilder(CListener):
+    def __init__(self):
+        super().__init__()
+        self.graph = nx.DiGraph()
+        self.declaration_stack = []
+        self.current_function = None
+        self.typedefs = set()  # Track typedef names to prevent duplications
+
+    def peek_declaration(self):
+        if not self.declaration_stack:
+            return None
+        return self.declaration_stack[-1]
+
+    def push_declaration(self, node):
+        self.declaration_stack.append(node)
+
+    def pop_declaration(self):
+        if not self.declaration_stack:
+            return None
+        return self.declaration_stack.pop()
+
+    def enterFunctionDefinition(self, ctx: CParser.FunctionDefinitionContext):
+        func_name = ctx.declarator().getText().split('(')[0]  # Extract function name only
+        parent_node = self.peek_declaration()
+        func_node = DeclarationNode(func_name, "function", parent_node)
+        self.graph.add_node(func_node)
+        self.push_declaration(func_node)
+        self.current_function = func_node  # Set the current function context
+        if parent_node is not None:
+            self.graph.add_edge(parent_node, func_node, label="def")
+
+    def exitFunctionDefinition(self, ctx: CParser.FunctionDefinitionContext):
+        self.pop_declaration()
+        self.current_function = None  # Clear current function context
+
+    def enterDeclaration(self, ctx: CParser.DeclarationContext):
+        """
+        Handles both variable declarations and static assertions.
+        Differentiates between typedef and variable declarations.
+        """
+        # Check if the declaration is a typedef
+        is_typedef = any(
+            specifier.getText() == 'typedef'
+            for specifier in ctx.declarationSpecifiers().declarationSpecifier()
+        )
+
+        init_declarator_list = ctx.initDeclaratorList()
+        if not init_declarator_list:
+            return
+
+        if is_typedef:
+            # Handle typedefs
+            for init_declarator in init_declarator_list.initDeclarator():
+                declarator = init_declarator.declarator()
+                if declarator:
+                    typedef_name = declarator.getText()
+                    if typedef_name not in self.typedefs:
+                        typedef_node = DeclarationNode(typedef_name, "typedef", self.peek_declaration())
+                        self.graph.add_node(typedef_node)
+                        self.typedefs.add(typedef_name)  # Track typedef names
+                        if self.peek_declaration() is not None:
+                            self.graph.add_edge(self.peek_declaration(), typedef_node, label="def")
+        else:
+            # Handle variables, excluding function arguments
+            for init_declarator in init_declarator_list.initDeclarator():
+                declarator = init_declarator.declarator()
+                if declarator:
+                    var_name = declarator.getText()
+
+                    # Check if the variable is a function argument
+                    # Function arguments will not be handled here, only local variables
+                    if self.current_function and not self._is_function_argument(declarator):
+                        var_node = DeclarationNode(var_name, "var", self.current_function)
+                        self.graph.add_node(var_node)
+                        if self.current_function is not None:
+                            self.graph.add_edge(self.current_function, var_node, label="def")
+                        else:
+                            # If no current function context, use the top of the stack (global scope)
+                            parent_node = self.peek_declaration()
+                            if parent_node is not None:
+                                self.graph.add_edge(parent_node, var_node, label="def")
+
+    def _is_function_argument(self, declarator):
+        """
+        Checks if the declarator represents a function argument.
+        This is a placeholder and needs actual logic based on the parse tree structure.
+        """
+        # Actual implementation to check if the variable is a function argument
+        # This is just an example; adjust it based on the CParser's API and context
+        return False
+
+    def enterStructOrUnionSpecifier(self, ctx: CParser.StructOrUnionSpecifierContext):
+        struct_or_union_type = ctx.structOrUnion().getText()  # "struct" or "union"
+
+        if ctx.Identifier():
+            struct_name = ctx.Identifier().getText()
+            print(f"Struct or Union detected: {struct_or_union_type} {struct_name}")  # Debugging print statement
+        
+            parent_node = self.peek_declaration()
+            # Create a new DeclarationNode for the struct/union with the given name
+            struct_node = DeclarationNode(struct_name, "struct", parent_node)
+            self.graph.add_node(struct_node)
+            if parent_node is not None:
+                self.graph.add_edge(parent_node, struct_node, label="def")
+
+    def enterTypeSpecifier(self, ctx: CParser.TypeSpecifierContext):
+        # Handles custom variable types
+        if ctx.typedefName():
+            typedef_name = ctx.typedefName().Identifier().getText()
+            if typedef_name not in self.typedefs:
+                typedef_node = DeclarationNode(typedef_name, "var", self.peek_declaration())
+                self.graph.add_node(typedef_node)
+                self.typedefs.add(typedef_name)  # Track typedef names
+                if self.peek_declaration() is not None:
+                    self.graph.add_edge(self.peek_declaration(), typedef_node, label="def")
+
+    @staticmethod
+    def build_graph(source_code: str) -> nx.DiGraph:
+        lexer = CLexer(InputStream(source_code))
+        stream = CommonTokenStream(lexer)
+        parser = CParser(stream)
+        tree = parser.compilationUnit()
+
+        listener = CGraphBuilder()
+        walker = ParseTreeWalker()
+        walker.walk(listener, tree)
+        return listener.graph
 
 
 class SolidityGraphBuilder(SolidityListener):
@@ -150,9 +283,9 @@ class SolidityGraphBuilder(SolidityListener):
         walker.walk(listener, tree)
         return listener.graph
 
-
 GRAPH_BUILDERS = {
-    "solidity": SolidityGraphBuilder
+    "solidity": SolidityGraphBuilder,
+    "c": CGraphBuilder
 }
 
 

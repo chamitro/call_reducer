@@ -4,5 +4,6 @@ def read_file(file_path: str) -> str:
 
 
 def update_file(file_path: str, content: str):
+    print("KANOUME UPDATE TO FILEEEEEEEEEEEEEEEEEEEEEEE")
     with open(file_path, 'w') as file:
         file.write(content)

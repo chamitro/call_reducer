@@ -19,4 +19,5 @@ class BasicPropertyChecker():
 
 PROPERTY_CHECKERS = {
     "solidity": BasicPropertyChecker,
+    "c": BasicPropertyChecker
 }

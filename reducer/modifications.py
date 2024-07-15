@@ -8,6 +8,10 @@ from reducer.grammars.solidity.SolidityLexer import SolidityLexer
 from reducer.grammars.solidity.SolidityParser import SolidityParser
 from reducer.grammars.solidity.SolidityListener import SolidityListener
 
+from reducer.grammars.c.CLexer import CLexer
+from reducer.grammars.c.CParser import CParser
+from reducer.grammars.c.CListener import CListener
+
 
 class ASTRemoval(ABC):
     def __init__(self, tree, graph: nx.DiGraph):
@@ -24,6 +28,94 @@ class ASTRemoval(ABC):
     @abstractmethod
     def setup_parse_tree(self, source_code: str):
         pass
+
+class CDeclarationRemoval(CListener, ASTRemoval):
+    def __init__(self, tree, graph):
+        super().__init__(tree, graph)
+    
+    def remove_use_site(self, ctx):
+        text = ctx.getText()
+        if any(node.name + "(" in text for node in self.nodes_to_remove):
+            equal_sign_index = text.find('=')
+            if equal_sign_index != -1:
+                start = ctx.start.start + equal_sign_index + 1
+                stop = ctx.stop.stop
+                if (stop < ctx.stop.stop
+                        and text[stop - ctx.start.start] == ';'):
+                    stop += 1
+                stop -= 1
+                self.removals.append((start, stop))
+            else:
+                self.removals.append((ctx.start.start, ctx.stop.stop))
+        elif any(node.name in text for node in self.nodes_to_remove):
+            self.removals.append((ctx.start.start, ctx.stop.stop))
+
+    def enterFunctionDefinition(self, ctx):
+        # Extract function name from declarator context
+        function_name = ctx.declarator().directDeclarator().getText()
+#        print(function_name)
+        fun2 = function_name.split('(', 1)[0]
+        print(fun2)
+        if any((node.name == fun2 and node.node_type == "function")
+               for node in self.nodes_to_remove):
+            print("BIKAME STO FUNCTION")
+            self.removals.append((ctx.start.start, ctx.stop.stop))
+
+    def enterDeclaration(self, ctx):
+        if ctx.initDeclaratorList():
+            for declarator in ctx.initDeclaratorList().initDeclarator():
+                variable_name = declarator.declarator().directDeclarator().getText()
+                print(variable_name)
+                if any((node.name == variable_name
+                    and node.node_type == "var")
+                   for node in self.nodes_to_remove):
+                    print(variable_name)
+                    self.removals.append((ctx.start.start, ctx.stop.stop))
+
+    def enterStructOrUnionSpecifier(self, ctx):
+        if ctx.Identifier():
+            struct_name = ctx.Identifier().getText()
+            if any((node.name == struct_name and node.node_type == "struct")
+               for node in self.nodes_to_remove):
+                self.removals.append((ctx.start.start, ctx.stop.stop))
+
+#    def enterExpressionStatement(
+#            self, ctx: CParser.ExpressionStatementContext):
+#        self.remove_use_site(ctx)
+    
+#    def enterAssignmentExpression(self, ctx: CParser.AssignmentExpressionContext):
+#        self.remove_use_site(ctx)
+#        assignment = ctx.getText()
+##        print(f"EIMASTE SE ASSIGMENT:", ctx.getText())
+#        if any((node.name == assignment and node.node_type == "var")
+#               for node in self.nodes_to_remove):
+#            print("THA KANOUME REMOVE TO ASSIGMENT")
+#            self.removals.append((ctx.start.start, ctx.stop.stop))
+
+    def remove_nodes(self, source_code, nodes_to_remove: set, removed_nodes: set):
+        self.nodes_to_remove = nodes_to_remove
+        print(f"EIMASTE STIN REMOVE NODES:",nodes_to_remove)
+        self.removed_nodes = removed_nodes.union(nodes_to_remove)
+        walker = ParseTreeWalker()
+        walker.walk(self, self.tree)
+        for start, stop in sorted(self.removals, reverse=True):
+            print("BIKAME RE NA KANOUME TA REMOVALS")
+            code_block = source_code[start:stop + 1]
+            if any(node.name in code_block for node in self.nodes_to_remove):
+                source_code = source_code[:start] + \
+                    (len(code_block) * " ") + source_code[stop + 2:]
+#            print(source_code)
+        source_code = source_code.replace(r"/\s\s+/g", ' ')
+        modified_source_code = re.sub(r'\n\s*\n', '\n\n', source_code)
+        print(modified_source_code)
+        return modified_source_code
+
+    @classmethod
+    def setup_parse_tree(self, source_code: str):
+        lexer = CLexer(InputStream(source_code))
+        stream = CommonTokenStream(lexer)
+        parser = CParser(stream)
+        return parser.compilationUnit()
 
 
 class SolidityDeclarationRemoval(SolidityListener, ASTRemoval):
@@ -190,4 +282,5 @@ class SolidityDeclarationRemoval(SolidityListener, ASTRemoval):
 
 AST_REMOVALS = {
     "solidity": SolidityDeclarationRemoval,
+    "c": CDeclarationRemoval
 }
