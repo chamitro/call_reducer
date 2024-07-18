@@ -35,6 +35,8 @@ class CDeclarationRemoval(CListener, ASTRemoval):
     
     def remove_use_site(self, ctx):
         text = ctx.getText()
+        print(self.nodes_to_remove)
+        print(f"eimaste stin remove_use_site kai to text einai:", text)
         if any(node.name + "(" in text for node in self.nodes_to_remove):
             equal_sign_index = text.find('=')
             if equal_sign_index != -1:
@@ -47,8 +49,20 @@ class CDeclarationRemoval(CListener, ASTRemoval):
                 self.removals.append((start, stop))
             else:
                 self.removals.append((ctx.start.start, ctx.stop.stop))
-        elif any(node.name in text for node in self.nodes_to_remove):
-            self.removals.append((ctx.start.start, ctx.stop.stop))
+        for node in self.nodes_to_remove:
+                # Create a regex pattern to match the node name as a whole word
+                pattern = re.compile(r'\b' + re.escape(node.name) + r'\b')
+                if pattern.search(text):
+                    print(f"BIKAME STIN GIATI VRIKAME KAPOIO NODE NAME NA ADISTOIXEI STO TEXT:", text)
+                    self.removals.append((ctx.start.start, ctx.stop.stop))
+                    break
+
+    def get_base_name(self, name):
+        # Regular expression to match 'bla[...]'
+        match = re.match(r'([a-zA-Z_]\w*)\[\d*\]', name)
+        if match:
+            return match.group(1)
+        return name
 
     def enterFunctionDefinition(self, ctx):
         # Extract function name from declarator context
@@ -77,19 +91,29 @@ class CDeclarationRemoval(CListener, ASTRemoval):
             struct_name = ctx.Identifier().getText()
             if any((node.name == struct_name and node.node_type == "struct")
                for node in self.nodes_to_remove):
-                self.removals.append((ctx.start.start, ctx.stop.stop))
+                self.removals.append((ctx.start.start, ctx.stop.stop+1))
 
-#    def enterExpressionStatement(
-#            self, ctx: CParser.ExpressionStatementContext):
-#        self.remove_use_site(ctx)
+    def enterExpressionStatement(
+            self, ctx: CParser.ExpressionStatementContext):
+#        print(f"BIKAME SE EXPRESSSSSSSSSSSION",ctx.getText())
+#        expr = ctx.getText()
+#        if any((node.name in expr and node.node_type == "var")
+#               for node in self.nodes_to_remove):
+#                self.removals.append((ctx.start.start, ctx.stop.stop+1))
+        self.remove_use_site(ctx)
     
 #    def enterAssignmentExpression(self, ctx: CParser.AssignmentExpressionContext):
-#        self.remove_use_site(ctx)
+##        self.remove_use_site(ctx)
 #        assignment = ctx.getText()
-##        print(f"EIMASTE SE ASSIGMENT:", ctx.getText())
-#        if any((node.name == assignment and node.node_type == "var")
+#        print(f"EIMASTE SE ASSIGMENT:", assignment)
+
+#        # Get the base name of the assignment
+##        assignment_base_name = self.get_base_name(assignment)
+#        
+#        # Check if the base name of the assignment matches any node to be removed
+#        if any(self.get_base_name(node.name) in assignment and node.node_type == "var"
 #               for node in self.nodes_to_remove):
-#            print("THA KANOUME REMOVE TO ASSIGMENT")
+#            print(f"THA KANOUME REMOVE TO ASSIGMENT", assignment)
 #            self.removals.append((ctx.start.start, ctx.stop.stop))
 
     def remove_nodes(self, source_code, nodes_to_remove: set, removed_nodes: set):
@@ -103,7 +127,7 @@ class CDeclarationRemoval(CListener, ASTRemoval):
             code_block = source_code[start:stop + 1]
             if any(node.name in code_block for node in self.nodes_to_remove):
                 source_code = source_code[:start] + \
-                    (len(code_block) * " ") + source_code[stop + 2:]
+                    (len(code_block) * " ") + source_code[stop + 1:]
 #            print(source_code)
         source_code = source_code.replace(r"/\s\s+/g", ' ')
         modified_source_code = re.sub(r'\n\s*\n', '\n\n', source_code)
