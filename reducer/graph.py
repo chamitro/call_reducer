@@ -1,4 +1,5 @@
 from typing import NamedTuple, List, Any
+import re
 
 from antlr4 import InputStream, CommonTokenStream, ParseTreeWalker
 import networkx as nx
@@ -69,6 +70,13 @@ class CGraphBuilder(CListener):
         self.pop_declaration()
         self.current_function = None  # Clear current function context
 
+    def get_base_name(self, name):
+        # Regular expression to match 'bla[...]'
+        match = re.match(r'([a-zA-Z_]\w*)\[\d*\]', name)
+        if match:
+            return match.group(1)
+        return name
+        
     def enterDeclaration(self, ctx: CParser.DeclarationContext):
         """
         Handles both variable declarations and static assertions.
@@ -101,8 +109,8 @@ class CGraphBuilder(CListener):
             for init_declarator in init_declarator_list.initDeclarator():
                 declarator = init_declarator.declarator()
                 if declarator:
-                    var_name = declarator.getText()
-
+                    var_name2 = declarator.getText()
+                    var_name = self.get_base_name(var_name2)
                     # Check if the variable is a function argument
                     # Function arguments will not be handled here, only local variables
                     if self.current_function and not self._is_function_argument(declarator):

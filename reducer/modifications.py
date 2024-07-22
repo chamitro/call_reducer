@@ -12,7 +12,6 @@ from reducer.grammars.c.CLexer import CLexer
 from reducer.grammars.c.CParser import CParser
 from reducer.grammars.c.CListener import CListener
 
-
 class ASTRemoval(ABC):
     def __init__(self, tree, graph: nx.DiGraph):
         self.tree = tree
@@ -53,7 +52,7 @@ class CDeclarationRemoval(CListener, ASTRemoval):
                 # Create a regex pattern to match the node name as a whole word
                 pattern = re.compile(r'\b' + re.escape(node.name) + r'\b')
                 if pattern.search(text):
-                    print(f"BIKAME STIN GIATI VRIKAME KAPOIO NODE NAME NA ADISTOIXEI STO TEXT:", text)
+                    print(f"BIKAME, VRIKAME KAPOIO NODE NAME NA ADISTOIXEI STO TEXT:", text)
                     self.removals.append((ctx.start.start, ctx.stop.stop))
                     break
 
@@ -75,16 +74,62 @@ class CDeclarationRemoval(CListener, ASTRemoval):
             print("BIKAME STO FUNCTION")
             self.removals.append((ctx.start.start, ctx.stop.stop))
 
-    def enterDeclaration(self, ctx):
-        if ctx.initDeclaratorList():
-            for declarator in ctx.initDeclaratorList().initDeclarator():
-                variable_name = declarator.declarator().directDeclarator().getText()
-#                print(variable_name)
-                if any((node.name == variable_name
-                    and node.node_type == "var")
-                   for node in self.nodes_to_remove):
-#                    print(variable_name)
-                    self.removals.append((ctx.start.start, ctx.stop.stop))
+    def enterDeclaration(self, ctx: CParser.DeclarationContext):
+    # Check if the declaration is a typedef
+        is_typedef = False
+        typedef_name = None
+
+    # Check for typedef and process specifiers
+        for specifier in ctx.declarationSpecifiers().declarationSpecifier():
+            specifier_text = specifier.getText()
+            print(f"Specifier: {specifier_text}")
+            if specifier_text == 'typedef':
+                print("BIKAME STIN TYPEDEFFFFFFFFFFFFFFFFFF")
+                is_typedef = True
+                print(is_typedef)
+            if any((node.name == specifier_text and node.node_type == "var") for node in self.nodes_to_remove):
+                is_typedef = True
+
+        print(f"Context: {ctx.getText()}")
+        print(f"DeclarationSpecifiers: {ctx.declarationSpecifiers().getText()}")
+        print(f"InitDeclaratorList: {ctx.initDeclaratorList()}")
+
+        init_declarator_list = ctx.initDeclaratorList()
+
+        if not init_declarator_list and is_typedef:
+            print("No InitDeclaratorList found, handling typedef without initDeclaratorList.")
+            print(ctx.getText())
+            self.removals.append((ctx.start.start, ctx.stop.stop + 1))
+            # Handle typedef without initDeclaratorList (e.g., typedef struct { ... } Person;)
+            # Extract the last identifier in the declaration specifiers as the typedef name
+        
+        if not init_declarator_list:
+            print("No InitDeclaratorList found, returning.")
+            return
+        print(is_typedef)
+        
+        if is_typedef:
+        # Handle typedefs
+            print("EXOUME TYPEDEF")
+            for init_declarator in init_declarator_list.initDeclarator():
+                declarator = init_declarator.declarator()
+                if declarator:
+                    typedef_name = declarator.getText()
+                    print(f"Typedef name: {typedef_name}")
+                    if any((node.name == typedef_name and node.node_type == "typedef") for node in self.nodes_to_remove):
+                        print(f"Removing typedef: {typedef_name}")
+                        self.removals.append((ctx.start.start, ctx.stop.stop + 1))
+        else:
+        # Handle variables, excluding function arguments
+            for init_declarator in init_declarator_list.initDeclarator():
+                declarator = init_declarator.declarator()
+                if declarator:
+                    var_name = declarator.getText()
+
+                # Check if the variable is a function argument
+                if any((node.name == self.get_base_name(var_name) and node.node_type == "var") for node in self.nodes_to_remove):
+                    print(f"Removing variable: {var_name}")
+                    self.removals.append((ctx.start.start, ctx.stop.stop + 1))
 
     def enterStructOrUnionSpecifier(self, ctx):
         if ctx.Identifier():
@@ -100,6 +145,7 @@ class CDeclarationRemoval(CListener, ASTRemoval):
 #        if any((node.name in expr and node.node_type == "var")
 #               for node in self.nodes_to_remove):
 #                self.removals.append((ctx.start.start, ctx.stop.stop+1))
+        print("EXPRESSIONS")
         self.remove_use_site(ctx)
     
 #    def enterAssignmentExpression(self, ctx: CParser.AssignmentExpressionContext):

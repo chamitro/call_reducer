@@ -41,7 +41,7 @@ class Interesting():
             n for n in self.graph.nodes()
             if n.node_type in self.mode and n not in nodes
         ]
-        print("EXOUME BEI STIN REMOVE DEFINITIONS")
+#        print("EXOUME BEI STIN REMOVE DEFINITIONS")
         fr_nodes = frozenset(nodes)
         if fr_nodes in self.cache:
             return self.cache.get(fr_nodes)
