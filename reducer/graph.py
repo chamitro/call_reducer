@@ -28,6 +28,18 @@ class ASTNode:
 
     __repr__ = __str__
 
+class ASTNode:
+    def __init__(self, name: str, node_type: str, parent: Optional['ASTNode'] = None):
+        self.name = name
+        self.node_type = node_type
+        self.children: List['ASTNode'] = []
+        self.parent = parent
+
+    def __str__(self):
+        return f"{self.node_type}({self.name})"
+
+    __repr__ = __str__
+
 class CGraphBuilder(CListener):
     def __init__(self):
         super().__init__()
@@ -59,13 +71,16 @@ class CGraphBuilder(CListener):
             declarator = init_declarator.declarator()
             if declarator:
                 var_name = declarator.getText()
-                # Check if it's a function declaration
+                # Check if it's a function declaration (without definition)
                 if '(' in var_name and ')' in var_name:
-                    func_node = ASTNode(var_name.split('(')[0], "function", self.current_node)
-                    if self.current_node:
+                    func_name = var_name.split('(')[0]
+                    func_node = ASTNode(func_name, "function", self.current_node)
+                    if self.current_node is None:
+                        self.ast_root = func_node
+                    else:
                         self.current_node.children.append(func_node)
                 else:
-                    var_node = ASTNode(var_name, "typedef" if (is_typedef) else "var", self.current_node)
+                    var_node = ASTNode(var_name, "typedef" if is_typedef else "var", self.current_node)
                     if self.current_node:
                         self.current_node.children.append(var_node)
 
@@ -238,13 +253,12 @@ def build_graph_from_file(file_path: str, language: str) -> nx.DiGraph:
     content = utils.read_file(file_path)
     if language == "c":
         ast = CGraphBuilder.build_ast(content)
-        print_ast(ast)
+        print_ast(ast)  # Print the AST
         return visualize_ast(ast)
     elif language == "solidity":
         ast = SolidityGraphBuilder.build_ast(content)
-        print_ast(ast)
+        print_ast(ast)  # Print the AST
         return visualize_ast(ast)
-
 
 if __name__ == '__main__':
     file_path = 'ext_changed.sol'
