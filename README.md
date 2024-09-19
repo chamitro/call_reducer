@@ -40,7 +40,7 @@ Once installed, you can run Slither on a Solidity file, such as:
 slither Solidity/smart2/ext_changed.sol
 ```
 
-#GReduce Usage
+## GReduce Usage
 
 GReduce supports the following arguments:
 
@@ -70,7 +70,7 @@ greduce --source-file ./Solidity/smart2/ext_changed.sol --script ./Solidity/smar
 
 Note: For each smart contract, ensure that Slither runs with the appropriate Solidity compiler version. The `solc-select` use version command is mandatory before running Slither.
 
-#Running Solidity Benchmarks
+## Running Solidity Benchmarks
 
 To run all benchmarks for Solidity, execute:
 
