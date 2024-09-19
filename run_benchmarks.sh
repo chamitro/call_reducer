@@ -99,7 +99,7 @@ for DIR in "$BASE_DIR"/smart*; do
         TIME_SOLC_SELECT=$(measure_time solc-select use "$(cat "$VERSION_FILE")")
 
         # Step 4: Run the greduce command
-        GRECUCE_TIME_OUTPUT=$(measure_time greduce --consider "$(cat "$PROPERTY_FILE")" --source-file "$EXT_CHANGED")
+        GRECUCE_TIME_OUTPUT=$(measure_time greduce --source-file "$EXT_CHANGED" --script "$SOLIDITY2_SCRIPT")
         GRECUCE_TIME=$(echo "$GRECUCE_TIME_OUTPUT" | grep -oP 'Execution time: \K[\d.]+')
 
         # Count metrics after greduce
@@ -168,4 +168,3 @@ for DIR in "$BASE_DIR"/smart*; do
         echo "Directory $DIR does not exist or is not a directory."
     fi
 done
-
