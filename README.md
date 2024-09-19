@@ -1,6 +1,6 @@
 # GReduce
 
-GReduce is a tool designed to minimize source files by reducing irrelevant portions of code. It supports both Solidity and C languages and is useful for simplifying code while retaining its functionality.
+GReduce is a tool designed to minimize source code files by reducing their code, while keeping specific properties of the code. It supports both Solidity and C and is useful for simplifying code while retaining its functionality.
 
 ## Installation
 
