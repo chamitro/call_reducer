@@ -48,7 +48,7 @@ GReduce supports the following arguments:
 	- `--source-file`: The source file to minimize. (Default: `"ext_changed.sol"`)
 	- `--script`: The script to run during the reduction process. (Default: `"./solidity2.sh"`)
 
-#Example Usage
+## Example Usage
 
 To reduce a Solidity smart contract (e.g., `ext_changed.sol`) using the script `solidity2.sh`, follow these steps:
 
