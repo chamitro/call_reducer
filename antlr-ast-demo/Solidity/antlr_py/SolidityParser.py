@@ -1,4 +1,4 @@
-# Generated from ./grammars/Solidity/Solidity.g4 by ANTLR 4.7.2
+# Generated from ./grammars/solidity_grammar/solidity_grammar.g4 by ANTLR 4.7.2
 # encoding: utf-8
 from antlr4 import *
 from io import StringIO
@@ -608,7 +608,7 @@ def serializedATN():
 
 class SolidityParser ( Parser ):
 
-    grammarFileName = "Solidity.g4"
+    grammarFileName = "solidity_grammar.g4"
 
     atn = ATNDeserializer().deserialize(serializedATN())
 

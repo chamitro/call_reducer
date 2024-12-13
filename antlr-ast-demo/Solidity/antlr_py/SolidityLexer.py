@@ -1,4 +1,4 @@
-# Generated from ./grammars/Solidity/Solidity.g4 by ANTLR 4.7.2
+# Generated from ./grammars/solidity_grammar/solidity_grammar.g4 by ANTLR 4.7.2
 from antlr4 import *
 from io import StringIO
 from typing.io import TextIO
@@ -820,7 +820,7 @@ class SolidityLexer(Lexer):
                   "DoubleQuotedStringCharacter", "SingleQuotedStringCharacter", 
                   "VersionLiteral", "WS", "COMMENT", "LINE_COMMENT" ]
 
-    grammarFileName = "Solidity.g4"
+    grammarFileName = "solidity_grammar.g4"
 
     def __init__(self, input=None, output:TextIO = sys.stdout):
         super().__init__(input, output)

@@ -354,7 +354,7 @@ if __name__ == '__main__':
     edge_labels = {(edge[0], edge[1]): edge[2]['label'] for edge in graph.edges(data=True)}
     nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_color='red', font_size=4)
 
-    plt.title('Solidity Contract Dependency Graph')
+    plt.title('solidity_grammar Contract Dependency Graph')
     plt.legend()
     plt.axis('off')
     plt.show()

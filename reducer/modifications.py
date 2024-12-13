@@ -12,6 +12,78 @@ from reducer.grammars.c.CLexer import CLexer
 from reducer.grammars.c.CParser import CParser
 from reducer.grammars.c.CListener import CListener
 
+from antlr_ast.ast import (
+    BaseNode as AstNode,
+    parse as parse_ast,
+    process_tree,
+    BaseNodeTransformer,
+)
+from antlr_ast.inputstream import CaseTransformInputStream
+from reducer.solidity_grammar import grammar
+
+
+class ExpressionStatement(AstNode):
+    _fields = ['expression', ';']
+
+    def get_source_code(self, node):
+        return node.get_text()
+
+
+class FunctionDefinition(AstNode):
+    _fields = ['functionDescriptor', 'parameterList', 'modifierList', 'returnParameters', ';', 'block']
+
+    def get_source_code(self, node):
+        text = f"function {node.functionDescriptor.identifier.get_text()} ("
+        for i, parameter in enumerate(node.parameterList.parameter):
+            text += f"{parameter.typeName.get_text()} {parameter.identifier.get_text()}"
+            if i < len(node.parameterList.parameter) - 1:
+                text += ", "
+            else:
+                text += ")"
+        # TODO: block visitor
+        text += f" {node.modifierList.get_text()} {node.returnParameters.get_text()}"  # modify for more return parameters
+
+
+class Block(AstNode):
+    _fields = ['{', 'statement', '}', ';']
+
+    def get_source_code(self, node):
+        return node.get_text()
+
+
+class FunctionCall(AstNode):
+    _fields = ["expression", "(", "functionCallArguments", ')' ';']
+
+
+class Identifier(AstNode):
+    _fields = ["(", 'from', 'calldata', 'receive', 'callback', 'revert', 'error', 'address', 'GlobalKeyword',
+               'ConstructorKeyword', 'PayableKeyword', 'LeaveKeyword', 'Identifier', ')', ';']
+
+function_removals = list()
+removals_positions = list()
+class Transformer(BaseNodeTransformer):
+    def search_removal_in_expression(self, node):
+        if isinstance(node, str):
+            return False
+        if node.Identifier in function_removals:
+            return True
+        else:
+            for child in node.children:
+                if self.search_removal_in_expression(child):
+                    return True
+
+    def visit_ExpressionStatement(self, node):
+        if self.search_removal_in_expression(node=node):
+            removals_positions.append(node.get_position())
+        return node
+
+    def visit_FunctionDefinition(self, node):
+        if hasattr(node.functionDescriptor.identifier, "Identifier"):
+            if node.functionDescriptor.identifier.Identifier.get_text() in function_removals:
+                removals_positions.append(node.get_position())
+        return node
+
+
 class ASTRemoval(ABC):
     def __init__(self, tree, graph: nx.DiGraph):
         self.tree = tree
@@ -320,37 +392,65 @@ class SolidityDeclarationRemoval(SolidityListener, ASTRemoval):
 
     def remove_nodes(self, source_code, nodes_to_remove: set,
                      removed_nodes: set):
+        global function_removals
+        global removals_positions
         self.nodes_to_remove = nodes_to_remove
         self.removed_nodes = removed_nodes.union(nodes_to_remove)
-        walker = ParseTreeWalker()
-        walker.walk(self, self.tree)
-        for start, stop in sorted(self.removals, reverse=True):
-            code_block = source_code[start:stop + 1]
-            if any(node.name in code_block for node in self.nodes_to_remove):
-                source_code = source_code[:start] + \
-                    (len(code_block) * " ") + source_code[stop + 1:]
+        function_removals = [node.name for node in self.nodes_to_remove]
+        removals_positions = list()
+        self.setup_parse_tree(source_code)
 
-        for identifier, new_inheritance_specifiers in self.replacements:
-            pattern = re.compile(rf"(\b{identifier}\b\s+is\s+)[^{{]*")
-            replacement_text = (
-                f"{identifier} is {new_inheritance_specifiers}"
-                if new_inheritance_specifiers
-                else f"{identifier}"
-            )
-            source_code = pattern.sub(replacement_text, source_code)
-        source_code = source_code.replace(r"/\s\s+/g", ' ')
-        modified_source_code = re.sub(r'\n\s*\n', '\n\n', source_code)
-        return modified_source_code
+        code_lines = source_code.splitlines()
+
+        lines_to_remove = set()
+        # TODO: epistrefw stahera sta function calls pou thelw na diagrapsw idioy tupou me to function call
+        for entry in removals_positions:
+            lines_to_remove.update(
+                range(entry['line_start'] - 1, entry['line_end']))
+
+        filtered_code_lines = [line for i, line in enumerate(code_lines) if i not in lines_to_remove]
+
+        filtered_code = "\n".join(filtered_code_lines)
+        return filtered_code
+
+        # walker = ParseTreeWalker()
+        # walker.walk(self, self.tree)
+        # for start, stop in sorted(self.removals, reverse=True):
+        #     code_block = source_code[start:stop + 1]
+        #     if any(node.name in code_block for node in self.nodes_to_remove):
+        #         source_code = source_code[:start] + \
+        #             (len(code_block) * " ") + source_code[stop + 1:]
+        #
+        # for identifier, new_inheritance_specifiers in self.replacements:
+        #     pattern = re.compile(rf"(\b{identifier}\b\s+is\s+)[^{{]*")
+        #     replacement_text = (
+        #         f"{identifier} is {new_inheritance_specifiers}"
+        #         if new_inheritance_specifiers
+        #         else f"{identifier}"
+        #     )
+        #     source_code = pattern.sub(replacement_text, source_code)
+        # source_code = source_code.replace(r"/\s\s+/g", ' ')
+        # modified_source_code = re.sub(r'\n\s*\n', '\n\n', source_code)
+        # return modified_source_code
 
     @classmethod
-    def setup_parse_tree(self, source_code: str):
-        lexer = SolidityLexer(InputStream(source_code))
-        stream = CommonTokenStream(lexer)
-        parser = SolidityParser(stream)
-        return parser.sourceUnit()
+    def setup_parse_tree(self, source_code, start="sourceUnit", transformer=Transformer, **kwargs):
+        antlr_tree = parse_ast(
+            grammar, source_code, start, transform=CaseTransformInputStream.LOWER, **kwargs
+        )
+        simple_tree = process_tree(antlr_tree, transformer_cls=transformer)
+
+        return simple_tree
+
+    # # ARCHIVED
+    # def setup_parse_tree(self, source_code: str):
+    #     lexer = SolidityLexer(InputStream(source_code))
+    #     stream = CommonTokenStream(lexer)
+    #     parser = SolidityParser(stream)
+    #     return parser.sourceUnit()
 
 
 AST_REMOVALS = {
     "solidity": SolidityDeclarationRemoval,
-    "c": CDeclarationRemoval
+    # "c": CDeclarationRemoval  # TODO
 }
