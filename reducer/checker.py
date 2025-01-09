@@ -14,13 +14,6 @@ class BasicPropertyChecker():
         try:
             result = subprocess.run(command, capture_output=True,
                                     text=False)
-            print(result.returncode)
             return result.returncode
         except subprocess.CalledProcessError:
             return None
-
-
-PROPERTY_CHECKERS = {
-    "solidity": BasicPropertyChecker,
-    "c": BasicPropertyChecker
-}

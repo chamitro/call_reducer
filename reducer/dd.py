@@ -12,13 +12,12 @@ from reducer.checker import BasicPropertyChecker
 
 class Interesting():
     def __init__(self, graph: nx.DiGraph,
-                 content: str, prop_checker: BasicPropertyChecker,
+                 content,
+                 prop_checker: BasicPropertyChecker,
                  language: str):
         self.graph = graph
-        self.content = content
-        self.content_ = content
         self.prop_checker = prop_checker
-        self.tree = AST_REMOVALS[language].setup_parse_tree(content)
+        self.content = content
         self.language = language
 
         res = prop_checker.run_test_script(None)
@@ -41,7 +40,6 @@ class Interesting():
             n for n in self.graph.nodes()
             if n.node_type in self.mode and n not in nodes
         ]
-#        print("EXOUME BEI STIN REMOVE DEFINITIONS")
         fr_nodes = frozenset(nodes)
         if fr_nodes in self.cache:
             return self.cache.get(fr_nodes)
@@ -59,20 +57,17 @@ class Interesting():
 
     def test_removing_definitions(self, nodes_to_remove):
         nodes_to_remove = set(nodes_to_remove).union(self.removed_nodes)
-        ast_removal = AST_REMOVALS[self.language](self.tree, self.graph)
-        modified_content = ast_removal.remove_nodes(self.content_,
-                                                    nodes_to_remove,
-                                                    self.removed_nodes)
-        print(modified_content)
+        ast_removal = AST_REMOVALS[self.language](self.content,
+                                                  self.graph)
+        modified_content = ast_removal.remove_nodes(nodes_to_remove)
         name = ''.join(random.sample(string.ascii_letters + string.digits, 5))
-        if(self.language == 'solidity'):
+        if (self.language == 'solidity'):
             temp_file_path = f"{name}.sol"
         else:
             temp_file_path = f"{name}.c"
         with open(temp_file_path, 'w') as temp_file:
             temp_file.write(modified_content)
         output = self.prop_checker.run_test_script(temp_file_path)
-        print(output)
         if output is not None:
             if output == 0:
                 # property is satisfied because script returned zero code 0
@@ -109,7 +104,6 @@ class Interesting():
 
     def update_graph(self, nodes_to_remove, remove_contracts=False):
         nodes = set()
-        print(nodes)
         excluded_nodes = set()
         for node in nodes_to_remove:
             if remove_contracts:
@@ -132,9 +126,7 @@ class Interesting():
 
 def perform_dd(interesting, node_filter, parallel: bool = True):
     dd_cls = picire.ParallelDD if parallel else picire.DD
-    nodes = [n for n in interesting.graph.nodes()
-             if node_filter(n)]
-    print(nodes)
+    nodes = [n for n in interesting.graph.nodes() if node_filter(n)]
     cache = picire.parallel_dd.SharedCache(
         picire.cache.ConfigCache(cache_fail=True))
     dd_obj = dd_cls(
@@ -152,5 +144,5 @@ def perform_dd(interesting, node_filter, parallel: bool = True):
         [f for f in nodes if f not in output_nodes],
         remove_contracts=True
     )
-    interesting.update_parse_tree()
+    #interesting.update_parse_tree()
     interesting.reset_state()

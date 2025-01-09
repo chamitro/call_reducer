@@ -1,16 +1,16 @@
 import argparse
 import time
-import resource, sys
-resource.setrlimit(resource.RLIMIT_STACK, (2**29,-1))
+import resource
+import sys
+
+from reducer import utils, parsers
+from reducer.dd import Interesting, perform_dd
+from reducer.checker import BasicPropertyChecker
+from reducer.graph import build_graph_from_file
+
+resource.setrlimit(resource.RLIMIT_STACK, (2**29, -1))
 sys.setrecursionlimit(10**6)
 
-import matplotlib.pyplot as plt
-import networkx as nx
-
-from reducer import utils
-from reducer.dd import Interesting, perform_dd
-from reducer.checker import PROPERTY_CHECKERS
-from reducer.graph import build_graph_from_file
 
 #example Solidity:greduce --script solidity2.sh
 #example C: greduce --source-file ./example.c --script ./cproperty.sh --language c
@@ -52,80 +52,30 @@ def main():
     print(f"Graph built from file: {file_path}")
     print(graph)
 
-#    def print_nodes_with_label(graph, label):
-#        nodes = [node for node in graph.nodes()
-#                 if node.node_type == label]
-#        print(f"Nodes with label '{label}':")
-#        print(nodes)
-#        print()
+    print(args.script)
+    print(file_path)
+    prop_checker = BasicPropertyChecker(file_path, args.script)
+    content = utils.read_file(file_path)
 
-#    def print_edges_with_label(graph):
-#        edges = graph.edges(data=True)
-#        print("Edges with labels:")
-#        for edge in edges:
-#            source = edge[0]
-#            target = edge[1]
-#            label = edge[2]['label']
-#            print(f"({source}) -> ({target}): {label}")
-#        print()
-
-#    print_nodes_with_label(graph, 'function')
-#    print_nodes_with_label(graph, 'var')
-##    print_nodes_with_label(graph, 'typedef')
-#    print_nodes_with_label(graph, 'struct')
-
-#    print_edges_with_label(graph)
-
-#    # Draw and display the graph
-#    plt.figure(figsize=(12, 8))
-#    pos = nx.spring_layout(graph, seed=42)  # Positions for all nodes
-
-#    # Nodes
-#    node_labels = {node: node for node in graph.nodes()}
-#    node_colors = {'function': 'lightgreen', 'var': 'yellow', 'struct':'red'}
-#    node_shapes = {'function': 'o', 'var': 'o', 'struct': 'o'}
-
-#    for label in node_colors:
-#        nx.draw_networkx_nodes(graph, pos, nodelist=[node for node in graph.nodes() if node.node_type == label],
-#                               node_color=node_colors[label], node_shape=node_shapes[label], label=label, node_size=500)
-
-#    # Edges
-#    nx.draw_networkx_edges(graph, pos, edgelist=graph.edges(), arrows=True)
-
-#    # Labels
-#    nx.draw_networkx_labels(graph, pos, labels=node_labels, font_size=8, font_color='black')
-
-#    # Edge labels
-#    edge_labels = {(edge[0], edge[1]): edge[2]['label'] for edge in graph.edges(data=True)}
-#    nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_color='red', font_size=4)
-
-#    plt.title('C Dependency Graph')
-#    plt.legend()
-#    plt.axis('off')
-#    plt.show()
-#    print(args.script)
-#    print(file_path)
-#    prop_checker = PROPERTY_CHECKERS[args.language](file_path, args.script)
-#    original_content = utils.read_file(file_path)
-
-#    interesting = Interesting(graph, original_content,
-#                              prop_checker, args.language)
-#    passes = [
-#        ["function"], ["contract"],
-#        ["event", "state_var", "struct", "var"]
-#    ]
-#    for pass_ in passes:
-#        interesting.mode = pass_
-#        perform_dd(interesting, lambda n: n.node_type in pass_,
-#                   parallel=True)
-#    passes = [
-#        ["function"],
-#        ["struct", "var"]
-#    ]
-#    for pass_ in passes:
-#        interesting.mode = pass_
-#        perform_dd(interesting, lambda n: n.node_type in pass_,
-#                   parallel=True)
+    interesting = Interesting(graph, content,
+                              prop_checker, args.language)
+    passes = [
+        ["function"],
+        # ["contract"],
+        # ["event", "state_var", "struct", "var"]
+    ]
+    for pass_ in passes:
+        interesting.mode = pass_
+        perform_dd(interesting, lambda n: n.node_type in pass_,
+                   parallel=True)
+    # passes = [
+    #     ["function"],
+    #     ["struct", "var"]
+    # ]
+    # for pass_ in passes:
+    #     interesting.mode = pass_
+    #     perform_dd(interesting, lambda n: n.node_type in pass_,
+    #                parallel=True)
 
     end_time = time.time()
     # Calculate the elapsed time
@@ -135,4 +85,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
