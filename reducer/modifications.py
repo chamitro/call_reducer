@@ -43,10 +43,7 @@ class SolidityDeclarationRemoval(ASTRemoval):
         return exit_funcs.get(node.type, self.exit_default)
 
     def visit_function_definition(self, node):
-        try:
-            function_name = node.children[1].text.decode("utf-8")
-        except:
-            import pdb; pdb.set_trace()
+        function_name = node.children[1].text.decode("utf-8")
         if any((node.name == function_name and node.node_type == "function")
                for node in self.nodes_to_remove):
             self.removed_nodes.append(node)
