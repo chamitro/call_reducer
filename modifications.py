@@ -16,12 +16,6 @@ class ASTRemoval(parsers.TreeTraversal):
     def remove_nodes(self, nodes_to_remove: set) -> str:
         pass
 
-    @classmethod
-    def setup_parse_tree(cls, source_code: str):
-        """Parses the source code and returns the Tree-sitter syntax tree."""
-        parser = parsers.get_parser(cls.LANGUAGE)
-        return parser.parse(source_code.encode("utf-8"))
-
 
 class SolidityDeclarationRemoval(ASTRemoval):
     LANGUAGE = "solidity"
@@ -39,6 +33,11 @@ class SolidityDeclarationRemoval(ASTRemoval):
     def get_node_visitor(self, node):
         visitors = {
             "function_definition": self.visit_function_definition,
+            "modifier_definition": self.visit_modifier_definition,
+            "struct_definition": self.visit_struct_definition,
+            "variable_declaration": self.visit_variable_declaration,
+            "state_variable_declaration": self.visit_state_variable_declaration,
+            "event_definition": self.visit_event_definition,
         }
         return visitors.get(node.type, self.visit_default)
 
@@ -52,13 +51,46 @@ class SolidityDeclarationRemoval(ASTRemoval):
         print(f"Identified function for removal: {function_name}")  # Debug log
         self.removed_nodes.append(node)
 
+    def visit_modifier_definition(self, node):
+        """Collects modifier nodes to be removed."""
+        modifier_name = node.children[1].text.decode("utf-8")
+        print(f"Identified modifier for removal: {modifier_name}")  # Debug log
+        self.removed_nodes.append(node)
+
+    def visit_struct_definition(self, node):
+        """Collects struct nodes to be removed."""
+        struct_name = node.children[1].text.decode("utf-8")
+        print(f"Identified struct for removal: {struct_name}")  # Debug log
+        self.removed_nodes.append(node)
+
+    def visit_variable_declaration(self, node):
+        """Collects variable declaration nodes to be removed."""
+        variable_name = node.children[1].text.decode("utf-8")
+        print(f"Identified variable for removal: {variable_name}")  # Debug log
+        self.removed_nodes.append(node)
+
+    def visit_state_variable_declaration(self, node):
+        """Collects state variable nodes to be removed."""
+        state_variable_name = node.children[1].text.decode("utf-8")
+        print(f"Identified state variable for removal: {state_variable_name}")  # Debug log
+        self.removed_nodes.append(node)
+
+    def visit_event_definition(self, node):
+        """Collects event nodes to be removed."""
+        event_name = node.children[1].text.decode("utf-8")
+        print(f"Identified event for removal: {event_name}")  # Debug log
+        self.removed_nodes.append(node)
+
     def remove_nodes(self, nodes_to_remove: set):
         parser = parsers.get_parser(self.LANGUAGE)
         tree = parser.parse(self.content.encode("utf-8"))
 
-        # Identify all function nodes
+        # Identify all relevant nodes
         self.traverse_node(tree.root_node)
-        nodes_to_remove = {DeclarationNode(node.children[1].text.decode("utf-8"), "function", None) for node in self.removed_nodes}
+        nodes_to_remove = {
+            DeclarationNode(node.children[1].text.decode("utf-8"), node.type, None)
+            for node in self.removed_nodes
+        }
 
         # Remove the identified nodes
         self.removed_nodes.sort(key=lambda node: node.start_byte, reverse=True)
@@ -92,9 +124,7 @@ class SolidityDeclarationRemoval(ASTRemoval):
             )
         parser = parsers.get_parser(self.LANGUAGE)
         updated_tree = parser.parse(modified_code, tree)
-        print(updated_tree)
         return updated_tree.text.decode("utf-8")
-        
 
 
 AST_REMOVALS = {
@@ -105,14 +135,9 @@ if __name__ == "__main__":
     file_name = "ext_changed.sol"
     from reducer import utils
     content = utils.read_file(file_name)
-
-    # Parse the source code to create a syntax tree
-    syntax_tree = SolidityDeclarationRemoval.setup_parse_tree(content)
-
-    # Create an instance of the removal class
     modifier = SolidityDeclarationRemoval(content, nx.DiGraph())
 
-    # Automatically remove all functions
+    # Automatically remove all relevant nodes
     updated_code = modifier.remove_nodes(set())
     print("Updated code:")  # Debug log
     print(updated_code)
