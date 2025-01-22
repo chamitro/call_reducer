@@ -8,9 +8,14 @@ SOLIDITY_LANGUAGE = Language("libs/libtree-sitter-solidity.so", "solidity")
 SOLIDITY_PARSER = Parser()
 SOLIDITY_PARSER.set_language(SOLIDITY_LANGUAGE)
 
+C_LANGUAGE = Language("libs/tree-sitter-languages.so", "c")
+C_PARSER = Parser()
+C_PARSER.set_language(C_LANGUAGE)
+
 
 PARSERS = {
     "solidity": SOLIDITY_PARSER,
+    "c": C_PARSER,
 }
 
 

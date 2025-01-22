@@ -24,6 +24,7 @@ classifiers = [
 ]
 dependencies = [
     "networkx",
+    "tree-sitter==0.21.0",
 ]
 
 [tool.setuptools]
