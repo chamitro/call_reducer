@@ -34,6 +34,11 @@ class SolidityDeclarationRemoval(ASTRemoval):
         visitors = {
             "function_definition": self.visit_function_definition,
             "call_expression": self.visit_call_expression,
+            "modifier_definition": self.visit_modifier_definition,
+            "struct_definition": self.visit_struct_definition,
+            "variable_declaration": self.visit_variable_declaration,
+            "state_variable_declaration": self.visit_state_variable_declaration,
+            "event_definition": self.visit_event_definition,
         }
         return visitors.get(node.type, self.visit_default)
 
@@ -41,6 +46,42 @@ class SolidityDeclarationRemoval(ASTRemoval):
         exit_funcs = {
         }
         return exit_funcs.get(node.type, self.exit_default)
+
+    def visit_function_definition(self, node):
+        """Collects function nodes to be removed."""
+        function_name = node.children[1].text.decode("utf-8")
+        print(f"Identified function for removal: {function_name}")  # Debug log
+        self.removed_nodes.append(node)
+
+    def visit_modifier_definition(self, node):
+        """Collects modifier nodes to be removed."""
+        modifier_name = node.children[1].text.decode("utf-8")
+        print(f"Identified modifier for removal: {modifier_name}")  # Debug log
+        self.removed_nodes.append(node)
+
+    def visit_struct_definition(self, node):
+        """Collects struct nodes to be removed."""
+        struct_name = node.children[1].text.decode("utf-8")
+        print(f"Identified struct for removal: {struct_name}")  # Debug log
+        self.removed_nodes.append(node)
+
+    def visit_variable_declaration(self, node):
+        """Collects variable declaration nodes to be removed."""
+        variable_name = node.children[1].text.decode("utf-8")
+        print(f"Identified variable for removal: {variable_name}")  # Debug log
+        self.removed_nodes.append(node)
+
+    def visit_state_variable_declaration(self, node):
+        """Collects state variable nodes to be removed."""
+        state_variable_name = node.children[1].text.decode("utf-8")
+        print(f"Identified state variable for removal: {state_variable_name}")  # Debug log
+        self.removed_nodes.append(node)
+
+    def visit_event_definition(self, node):
+        """Collects event nodes to be removed."""
+        event_name = node.children[1].text.decode("utf-8")
+        print(f"Identified event for removal: {event_name}")  # Debug log
+        self.removed_nodes.append(node)
 
     def visit_function_definition(self, node):
         function_name = node.children[1].text.decode("utf-8")
