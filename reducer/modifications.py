@@ -197,10 +197,11 @@ class CDeclarationRemoval(ASTRemoval):
         return exit_funcs.get(node.type, self.exit_default)
 
     def visit_function_definition(self, node):
-        function_name = node.children[1].children[0].text.decode("utf-8")
-        if any((node.name == function_name and node.node_type == "function")
-               for node in self.nodes_to_remove):
-            self.removed_nodes.append(node)
+        if len(node.children) > 1 and len(node.children[1].children) > 0:
+            function_name = node.children[1].children[0].text.decode("utf-8")
+            if any((node.name == function_name and node.node_type == "function")
+                   for node in self.nodes_to_remove):
+                self.removed_nodes.append(node)
 
     def visit_call_expression(self, node):
         child = node.children[0]
