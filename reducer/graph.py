@@ -163,14 +163,14 @@ class CGraphBuilder(GraphBuilder):
                 for child_child in child.children:
                     if child_child.type == "identifier":
                         func_name = child_child.text.decode("utf-8")
+                        parent_node = self.peek_declaration()
+                        func_node = DeclarationNode(func_name, "function", parent_node)
+                        self.graph.add_node(func_node)
+                        self.push_declaration(func_node)
+                        self.current_function = func_node  # Set the current function context
+                        if parent_node is not None:
+                            self.graph.add_edge(parent_node, func_node, label="def")
                         break
-        parent_node = self.peek_declaration()
-        func_node = DeclarationNode(func_name, "function", parent_node)
-        self.graph.add_node(func_node)
-        self.push_declaration(func_node)
-        self.current_function = func_node  # Set the current function context
-        if parent_node is not None:
-            self.graph.add_edge(parent_node, func_node, label="def")
 
     def exit_function_definition(self, node):
         self.pop_declaration()
@@ -236,6 +236,9 @@ class CGraphBuilder(GraphBuilder):
     def exit_struct_specifier(self, node):
         pass
 
+    def visit_type_specifier(self, node):
+        pass
+
     def exit_type_specifier(self, node):
         pass
 
@@ -282,7 +285,7 @@ def build_graph_from_file(file_path: str, language: str) -> nx.DiGraph:
 
 
 if __name__ == '__main__':
-    file_path = 'example.c'
+    file_path = '/home/imoraiti/Documents/Git/call_reducer/C/clang-22382/small.c'
     builder = CGraphBuilder()
     graph = builder.build_graph(file_path)
     print(graph)
