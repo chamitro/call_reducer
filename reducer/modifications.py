@@ -197,24 +197,23 @@ class CDeclarationRemoval(ASTRemoval):
         return exit_funcs.get(node.type, self.exit_default)
 
     def visit_function_definition(self, node):
-        if len(node.children) > 1 and len(node.children[1].children) > 0:
-            function_name = node.children[1].children[0].text.decode("utf-8")
-            if any((node.name == function_name and node.node_type == "function")
-                   for node in self.nodes_to_remove):
-                self.removed_nodes.append(node)
-
-    def visit_call_expression(self, node):
-        child = node.children[0]
-        call_name = child.text.decode("utf-8")
-        if any(node.name == call_name for node in self.nodes_to_remove):
-            self.removed_nodes.append(node)
+        for child in node.children:
+            if child.type == "function_declarator":
+                for child_child in child.children:
+                    if child_child.type == "identifier":
+                        function_name = child_child.text.decode("utf-8")
+                        if any((node.name == function_name and node.node_type == "function")
+                               for node in self.nodes_to_remove):
+                            self.removed_nodes.append(node)
 
     def visit_expression_statement(self, node):
         child = node.children[0]
         if child.type == "call_expression":
             call_name = child.children[0].text.decode("utf-8")
-            if any(node.name == call_name for node in self.nodes_to_remove):
-                self.removed_nodes.append(node)
+            for removal_node in self.nodes_to_remove:
+                if (removal_node.name == call_name
+                    and removal_node.node_type == "function"):
+                    self.removed_nodes.append(node)
 
     def remove_nodes(self, nodes_to_remove: set):
         parser = parsers.get_parser(self.LANGUAGE)
@@ -278,10 +277,10 @@ AST_REMOVALS = {
 }
 
 if __name__ == "__main__":
-    file_name = "example.c"
+    file_name = "./C/gcc-59903/small.c"
     from reducer import utils
     content = utils.read_file(file_name)
     modifier = CDeclarationRemoval(content, nx.DiGraph())
     updated_tree = modifier.remove_nodes(
-        {DeclarationNode("print_array", "function", None)})
+        {DeclarationNode("platform_main_end", "function", None), DeclarationNode("platform_main_end", "call_expression", None)})
     print(updated_tree)
