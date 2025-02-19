@@ -157,20 +157,29 @@ class CGraphBuilder(GraphBuilder):
     def exit_default(self, node):
         pass
 
+    def add_function_declaration_node(self, node):
+        func_name = node.text.decode("utf-8")
+        parent_node = self.peek_declaration()
+        func_node = DeclarationNode(func_name, "function", parent_node)
+        self.graph.add_node(func_node)
+        self.push_declaration(func_node)
+        self.current_function = func_node  # Set the current function context
+        if parent_node is not None:
+            self.graph.add_edge(parent_node, func_node, label="def")
+
     def visit_function_definition(self, node):
         for child in node.children:
             if child.type == "function_declarator":
                 for child_child in child.children:
                     if child_child.type == "identifier":
-                        func_name = child_child.text.decode("utf-8")
-                        parent_node = self.peek_declaration()
-                        func_node = DeclarationNode(func_name, "function", parent_node)
-                        self.graph.add_node(func_node)
-                        self.push_declaration(func_node)
-                        self.current_function = func_node  # Set the current function context
-                        if parent_node is not None:
-                            self.graph.add_edge(parent_node, func_node, label="def")
+                        self.add_function_declaration_node(child_child)
                         break
+                    if child_child.type == "parenthesized_declarator":
+                        for child_child_child in child_child.children:
+                            if child_child_child.type == "identifier":
+                                self.add_function_declaration_node(child_child_child)
+                                break
+
 
     def exit_function_definition(self, node):
         self.pop_declaration()
@@ -183,6 +192,7 @@ class CGraphBuilder(GraphBuilder):
                 if self.current_function:
                     var_node = DeclarationNode(var_name, "var", self.current_function)
                     self.graph.add_node(var_node)
+                    self.push_declaration(var_node)
                     if self.current_function is not None:
                         self.graph.add_edge(self.current_function, var_node, label="def")
                     else:
@@ -201,6 +211,7 @@ class CGraphBuilder(GraphBuilder):
                 if typedef_name not in self.typedefs:
                     typedef_node = DeclarationNode(typedef_name, "typedef", self.peek_declaration())
                     self.graph.add_node(typedef_node)
+                    self.push_declaration(typedef_node)
                     self.typedefs.add(typedef_name)  # Track typedef names
                     if self.peek_declaration() is not None:
                         self.graph.add_edge(self.peek_declaration(), typedef_node, label="def")
@@ -217,6 +228,7 @@ class CGraphBuilder(GraphBuilder):
                 struct_name = child.text.decode("utf-8")
                 struct_node = DeclarationNode(struct_name, "struct", parent_node)
                 self.graph.add_node(struct_node)
+                self.push_declaration(struct_node)
                 if parent_node is not None:
                     self.graph.add_edge(parent_node, struct_node, label="def")
 
@@ -230,6 +242,7 @@ class CGraphBuilder(GraphBuilder):
                 struct_name = child.text.decode("utf-8")
                 struct_node = DeclarationNode(struct_name, "struct", parent_node)
                 self.graph.add_node(struct_node)
+                self.push_declaration(struct_node)
                 if parent_node is not None:
                     self.graph.add_edge(parent_node, struct_node, label="def")
 
@@ -285,7 +298,7 @@ def build_graph_from_file(file_path: str, language: str) -> nx.DiGraph:
 
 
 if __name__ == '__main__':
-    file_path = '/home/imoraiti/Documents/Git/call_reducer/C/clang-22382/small.c'
+    file_path = '/home/imoraiti/Documents/Git/call_reducer/C/gcc-59903/small.c'
     builder = CGraphBuilder()
     graph = builder.build_graph(file_path)
     print(graph)
