@@ -188,6 +188,7 @@ class CDeclarationRemoval(ASTRemoval):
         visitors = {
             "function_definition": self.visit_function_definition,
             "expression_statement": self.visit_expression_statement,
+            "call_expression": self.visit_call_expression,
         }
         return visitors.get(node.type, self.visit_default)
 
@@ -196,59 +197,75 @@ class CDeclarationRemoval(ASTRemoval):
         }
         return exit_funcs.get(node.type, self.exit_default)
 
+    def add_expression_to_removal_nodes(self, child, node):
+        call_name = child.text.decode("utf-8")
+        for removal_node in self.nodes_to_remove:
+            if (removal_node.name == call_name
+                and removal_node.node_type == "function"):
+                self.removed_nodes.append(node)
+
+    def find_specific_parent_node(self, node, parent_node):
+        if node is None:
+            return
+        if node.type == parent_node:
+            return node
+        else:
+            return self.find_specific_parent_node(node.parent, parent_node)
+
     def visit_function_definition(self, node):
         for child in node.children:
             if child.type == "function_declarator":
                 for child_child in child.children:
                     if child_child.type == "identifier":
-                        function_name = child_child.text.decode("utf-8")
-                        if any((node.name == function_name and node.node_type == "function")
-                               for node in self.nodes_to_remove):
-                            self.removed_nodes.append(node)
+                        self.add_expression_to_removal_nodes(child_child, node)
+                        return
+                    elif child_child.type == "parenthesized_declarator":
+                        for child_child_child in child_child.children:
+                            self.add_expression_to_removal_nodes(child_child_child, node)
+                            return
+
+    def visit_call_expression(self, node):
+        for child in node.children:
+            if child.type == "identifier":
+                call_name = child.text.decode("utf-8")
+                for removal_node in self.nodes_to_remove:
+                    if (removal_node.name == call_name
+                        and removal_node.node_type == "function"):
+                        removal_parent_node = self.find_specific_parent_node(node, "expression_statement")
+                        if not removal_parent_node:
+                            removal_parent_node = self.find_specific_parent_node(node, "if_statement")
+                        if not removal_parent_node:
+                            removal_parent_node = self.find_specific_parent_node(node, "for_statement")
+                        if not removal_parent_node:
+                            breakpoint()
+                        self.removed_nodes.append(removal_parent_node)
+                return
 
     def visit_expression_statement(self, node):
-        child = node.children[0]
-        if child.type == "call_expression":
-            call_name = child.children[0].text.decode("utf-8")
-            for removal_node in self.nodes_to_remove:
-                if (removal_node.name == call_name
-                    and removal_node.node_type == "function"):
-                    self.removed_nodes.append(node)
+        for child in node.children:
+            if child.type in ["call_expression", "assignment_expression"]:
+                for child_child in child.children:
+                    if child_child.type == "identifier":
+                        self.add_expression_to_removal_nodes(child_child, node)
+                        return
 
     def remove_nodes(self, nodes_to_remove: set):
         parser = parsers.get_parser(self.LANGUAGE)
         tree = parser.parse(self.content.encode("utf-8"))
         self.nodes_to_remove = nodes_to_remove
         self.traverse_node(tree.root_node)
-        definitions = {
-            node for node in self.removed_nodes
-            if node.type in ["function_definition"]
-        }
         self.removed_nodes.sort(key=lambda node: node.start_byte, reverse=True)
         edits = []
         modified_code = tree.text
         for removed_node in self.removed_nodes:
-            if removed_node.type != "function_definition":
-                if any(removed_node.start_byte > n.start_byte and removed_node.end_byte < n.end_byte for n in definitions):
-                    continue
-            if removed_node.type == "assignment_expression":
-                edits.append({
-                    "start_byte": removed_node.start_byte,
-                    "old_end_byte": removed_node.end_byte,
-                    "new_end_byte": removed_node.children[0].end_byte,
-                    "start_point": removed_node.start_point,
-                    "old_end_point": removed_node.end_point,
-                    "new_end_point": removed_node.children[0].end_point,
-                })
-            else:
-                edits.append({
-                    "start_byte": removed_node.start_byte,
-                    "old_end_byte": removed_node.end_byte,
-                    "new_end_byte": removed_node.start_byte,  # Remove content
-                    "start_point": removed_node.start_point,
-                    "old_end_point": removed_node.end_point,
-                    "new_end_point": removed_node.start_point,
-                })
+            edits.append({
+                "start_byte": removed_node.start_byte,
+                "old_end_byte": removed_node.end_byte,
+                "new_end_byte": removed_node.start_byte,  # Remove content
+                "start_point": removed_node.start_point,
+                "old_end_point": removed_node.end_point,
+                "new_end_point": removed_node.start_point,
+            })
 
         for edit in edits:
             # Apply the edit to the tree
@@ -282,5 +299,7 @@ if __name__ == "__main__":
     content = utils.read_file(file_name)
     modifier = CDeclarationRemoval(content, nx.DiGraph())
     updated_tree = modifier.remove_nodes(
-        {DeclarationNode("platform_main_end", "function", None), DeclarationNode("platform_main_end", "call_expression", None)})
-    print(updated_tree)
+        {DeclarationNode("safe_lshift_func_int16_t_s_s", "function", None)})
+    with open("test_c_file.c", "w") as f:
+        f.write(updated_tree)
+    # print(updated_tree)
