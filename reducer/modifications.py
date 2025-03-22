@@ -177,6 +177,7 @@ class CDeclarationRemoval(ASTRemoval):
     def __init__(self, content, graph):
         super().__init__(content, graph)
         self.removed_nodes = []
+        self.removed_declarations = []
 
     def visit_default(self, node):
         pass
@@ -198,11 +199,22 @@ class CDeclarationRemoval(ASTRemoval):
         return exit_funcs.get(node.type, self.exit_default)
 
     def add_expression_to_removal_nodes(self, child, node):
-        call_name = child.text.decode("utf-8")
+        child_name = child.text.decode("utf-8")
+        if (child_name in self.removed_declarations
+            and node not in self.removed_nodes):
+            self.removed_nodes.append(node)
         for removal_node in self.nodes_to_remove:
-            if (removal_node.name == call_name
-                and removal_node.node_type == "function"):
+            if (removal_node.name == child_name
+                and removal_node.node_type == "function"
+                and node not in self.removed_nodes):
                 self.removed_nodes.append(node)
+
+    def add_declaration_to_removed_declarations(self, declaration_node):
+        for declaration_child in declaration_node.children:
+            if declaration_child.type == "identifier":
+                self.removed_declarations.append(declaration_child.text.decode("utf-8"))
+            elif declaration_child.type == "init_declarator":
+                self.add_declaration_to_removed_declarations(declaration_child)
 
     def find_specific_parent_node(self, node, parent_node):
         if node is None:
@@ -221,25 +233,41 @@ class CDeclarationRemoval(ASTRemoval):
                         return
                     elif child_child.type == "parenthesized_declarator":
                         for child_child_child in child_child.children:
-                            self.add_expression_to_removal_nodes(child_child_child, node)
-                            return
+                            if child_child_child.type == "identifier":
+                                self.add_expression_to_removal_nodes(child_child_child, node)
+                                return
 
     def visit_call_expression(self, node):
+        remove_node = False
+        #  call_expression uses variable from removed declaration in argument list
         for child in node.children:
+            if child.type == "argument_list":
+                for child_child in child.children:
+                    if child_child.type == "identifier":
+                        variable_name = child_child.text.decode("utf-8")
+                        if variable_name in self.removed_declarations:
+                            remove_node = True
+            # call_expression uses removed function
             if child.type == "identifier":
                 call_name = child.text.decode("utf-8")
                 for removal_node in self.nodes_to_remove:
                     if (removal_node.name == call_name
                         and removal_node.node_type == "function"):
-                        removal_parent_node = self.find_specific_parent_node(node, "expression_statement")
-                        if not removal_parent_node:
-                            removal_parent_node = self.find_specific_parent_node(node, "if_statement")
-                        if not removal_parent_node:
-                            removal_parent_node = self.find_specific_parent_node(node, "for_statement")
-                        if not removal_parent_node:
-                            breakpoint()
-                        self.removed_nodes.append(removal_parent_node)
-                return
+                        remove_node = True
+        if remove_node:
+            removal_parent_node = self.find_specific_parent_node(node, "expression_statement")
+            if not removal_parent_node:
+                removal_parent_node = self.find_specific_parent_node(node, "declaration")
+                if removal_parent_node:
+                    self.add_declaration_to_removed_declarations(removal_parent_node)
+            if not removal_parent_node:
+                removal_parent_node = self.find_specific_parent_node(node, "if_statement")
+            if not removal_parent_node:
+                removal_parent_node = self.find_specific_parent_node(node, "for_statement")
+            if not removal_parent_node:
+                breakpoint()
+            self.removed_nodes.append(removal_parent_node)
+        return
 
     def visit_expression_statement(self, node):
         for child in node.children:
@@ -247,26 +275,47 @@ class CDeclarationRemoval(ASTRemoval):
                 for child_child in child.children:
                     if child_child.type == "identifier":
                         self.add_expression_to_removal_nodes(child_child, node)
-                        return
 
     def remove_nodes(self, nodes_to_remove: set):
         parser = parsers.get_parser(self.LANGUAGE)
         tree = parser.parse(self.content.encode("utf-8"))
         self.nodes_to_remove = nodes_to_remove
         self.traverse_node(tree.root_node)
+
+        self.removed_nodes = list(set(self.removed_nodes))
         self.removed_nodes.sort(key=lambda node: node.start_byte, reverse=True)
+
         edits = []
         modified_code = tree.text
-        for removed_node in self.removed_nodes:
-            edits.append({
-                "start_byte": removed_node.start_byte,
-                "old_end_byte": removed_node.end_byte,
-                "new_end_byte": removed_node.start_byte,  # Remove content
-                "start_point": removed_node.start_point,
-                "old_end_point": removed_node.end_point,
-                "new_end_point": removed_node.start_point,
-            })
+        visited_nodes = [False] * len(self.removed_nodes)
+        for i, removed_node in enumerate(self.removed_nodes):
+            if visited_nodes[i]:
+                continue
 
+            # Group of overlapping/contained nodes
+            overlapping_nodes = [removed_node]
+
+            for j in range(i + 1, len(self.removed_nodes)):
+                other_node = self.removed_nodes[j]
+                # Check for containment or overlap
+                if (other_node.start_byte <= removed_node.end_byte and
+                    other_node.end_byte >= removed_node.start_byte):
+                    visited_nodes[j] = True
+                    overlapping_nodes.append(other_node)
+                elif other_node.start_byte > removed_node.end_byte:
+                    break  # Since nodes are sorted, no further overlaps are possible
+
+            # Create a single edit for the merged overlapping nodes
+            start_byte = min(node.start_byte for node in overlapping_nodes)
+            end_byte = max(node.end_byte for node in overlapping_nodes)
+            edits.append({
+                "start_byte": start_byte,
+                "old_end_byte": end_byte,
+                "new_end_byte": start_byte,
+                "start_point": overlapping_nodes[0].start_point,
+                "old_end_point": overlapping_nodes[-1].end_point,
+                "new_end_point": overlapping_nodes[0].start_point,
+            })
         for edit in edits:
             # Apply the edit to the tree
             tree.edit(

@@ -12,8 +12,13 @@ class BasicPropertyChecker():
         print(file_path)
         command = ["bash", self.test_script, file_path or self.file_path]
         try:
-            result = subprocess.run(command, capture_output=True,
-                                    text=False)
+            while True:
+                result = subprocess.run(command, capture_output=True,
+                                        text=False)
+                if "exit 3" in result.stdout.decode("utf-8"):
+                    print("exit 3")
+                if "exit 3" not in result.stdout.decode("utf-8"):
+                    break
             return result.returncode
         except subprocess.CalledProcessError:
             return None
