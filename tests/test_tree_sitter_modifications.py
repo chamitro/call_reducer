@@ -16,6 +16,24 @@ REMOVAL_FUNCTION_NODE_SET = {
 TEST_FILE_NAME = "./tests/utils/test_c_file.c"
 TEMP_TEST_FILE_NAME = "./tests/utils/temp_test_c_file.c"
 
+TEST_SMALL_C = "./tests/utils/test_small.c"
+TEST_SMALL_C_REMOVAL_FUNCTION_NAME = "safe_div_func_uint32_t_u_u"
+TEST_SMALL_C_REMOVAL_FUNCTION_NODE_SET = {
+    DeclarationNode(TEST_SMALL_C_REMOVAL_FUNCTION_NAME, "function", None)
+}
+"""
+Nodes that produce syntactical errors when removed from test_small.c
+ 
+<Node type=if_statement, start_point=(2187, 12), end_point=(2208, 13)>
+<Node type=expression_statement, start_point=(2145, 16), end_point=(2145, 1191)>
+<Node type=if_statement, start_point=(1656, 4), end_point=(1724, 5)>
+<Node type=if_statement, start_point=(1497, 20), end_point=(1512, 21)>
+<Node type=if_statement, start_point=(1323, 20), end_point=(1338, 21)>
+<Node type=if_statement, start_point=(1293, 20), end_point=(1308, 21)>
+<Node type=if_statement, start_point=(1125, 20), end_point=(1140, 21)>
+<Node type=if_statement, start_point=(956, 20), end_point=(1345, 21)>
+<Node type=function_definition, start_point=(536, 0), end_point=(546, 1)>]
+"""
 
 @pytest.fixture
 def updated_tree():
@@ -34,6 +52,17 @@ def updated_tree():
 def initial_tree():
     initial_tree = parse(TEST_FILE_NAME, "c")
     return initial_tree
+
+
+@pytest.fixture
+def small_c_tree():
+    # small_c_tree = parse(TEST_SMALL_C, "c")
+    content = utils.read_file(TEST_SMALL_C)
+    modifier = CDeclarationRemoval(content, nx.DiGraph())
+    modifier.remove_nodes(TEST_SMALL_C_REMOVAL_FUNCTION_NODE_SET)
+    return
+    # return updated_tree_code
+    # return small_c_tree
 
 
 def find_nodes_of_type(root_node, type):
@@ -123,3 +152,7 @@ def test_c_if_statement_removal(initial_tree, updated_tree):
 
 def test_c_overlapping_nodes_removal(updated_tree):
     pass
+
+
+def test_c_removals_small_c(small_c_tree):
+    breakpoint()
