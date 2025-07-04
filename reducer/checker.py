@@ -15,6 +15,8 @@ class BasicPropertyChecker():
             while True:
                 result = subprocess.run(command, capture_output=True,
                                         text=False)
+                if "exit 1" in result.stdout.decode("utf-8"):
+                    breakpoint()
                 if "exit 3" in result.stdout.decode("utf-8"):
                     print("exit 3")
                 if "exit 3" not in result.stdout.decode("utf-8"):

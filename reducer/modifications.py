@@ -5,6 +5,12 @@ from reducer import parsers
 from reducer.graph import DeclarationNode
 
 
+def remove_empty_lines(source_code):
+    lines = source_code.split("\n")
+    non_empty_lines = [line for line in lines if line.strip() != ""]
+    return "\n".join(non_empty_lines)
+
+
 class ASTRemoval(parsers.TreeTraversal):
     def __init__(self, content, graph: nx.DiGraph):
         self.content = content
@@ -179,6 +185,50 @@ class CDeclarationRemoval(ASTRemoval):
         self.removed_nodes = []
         self.removed_declarations = []
         self.goto_statements = []
+        self.replaced_assignment_declarations = []
+        self.removed_nodes_with_types = {}
+        self.dummy_values = {
+            'int': '0xDEADBEEF',
+            'short': '0xDEAD',
+            'long': '0xDEADBEEFDEADBEEF',
+            'long long': '0xDEADBEEFDEADBEEF',
+            'unsigned int': '0xDEADBEEFU',
+            'unsigned short': '0xDEADU',
+            'unsigned long': '0xDEADBEEFDEADBEEFUL',
+            'unsigned long long': '0xDEADBEEFDEADBEEFULL',
+
+            'char': "'X'",
+            'unsigned char': "'X'",
+            'signed char': "'X'",
+
+            'float': '0xDEADBEEF',
+            'double': '0xDEADBEEFDEADBEEF',
+            'long double': '0xDEADBEEFDEADBEEF',
+
+            'bool': 'false',
+            '_Bool': 'false',
+
+            'void*': 'NULL',
+            'char*': 'NULL',
+            'int*': 'NULL',
+            'float*': 'NULL',
+            'double*': 'NULL',
+
+            'size_t': '0xDEADBEEF',
+            'ssize_t': '0xDEADBEEF',
+            'int8_t': '0xDE',
+            'uint8_t': '0xDEU',
+            'int16_t': '0xDEAD',
+            'uint16_t': '0xDEADU',
+            'int32_t': '0xDEADBEEF',
+            'uint32_t': '0xDEADBEEFU',
+            'int64_t': '0xDEADBEEFDEADBEEF',
+            'uint64_t': '0xDEADBEEFDEADBEEFULL',
+
+            'struct': '{0}',
+
+            'array': '{0}',
+}
 
     def visit_default(self, node):
         pass
@@ -193,6 +243,11 @@ class CDeclarationRemoval(ASTRemoval):
             "call_expression": self.visit_call_expression,
             "goto_statement": self.visit_goto_statement,
             "labeled_statement": self.visit_labeled_statement,
+            "declaration": self.visit_declaration,
+            "if_statement": self.visit_if_statement,
+            "for_statement": self.visit_for_statement,
+            "return_statement": self.visit_return_statement,
+            # "identifier": self.visit_identifier,
         }
         return visitors.get(node.type, self.visit_default)
 
@@ -226,17 +281,19 @@ class CDeclarationRemoval(ASTRemoval):
     def add_declaration_to_removed_declarations(self, declaration_node):
         for declaration_child in declaration_node.children:
             if declaration_child.type == "identifier":
-                self.removed_declarations.append(declaration_child.text.decode("utf-8"))
-            elif declaration_child.type == "init_declarator":
+                decl_name = declaration_child.text.decode("utf-8")
+                if decl_name not in self.removed_declarations:
+                    self.removed_declarations.append(decl_name)
+            elif declaration_child.type in ["init_declarator", "array_declarator"]:
                 self.add_declaration_to_removed_declarations(declaration_child)
 
-    def find_specific_parent_node(self, node, parent_node):
+    def find_specific_parent_node(self, node, parent_node_type):
         if node is None:
             return
-        if node.type == parent_node:
+        if node.type == parent_node_type:
             return node
         else:
-            return self.find_specific_parent_node(node.parent, parent_node)
+            return self.find_specific_parent_node(node.parent, parent_node_type)
 
     def has_parent_node(self, node, parent_node):
         current = node.parent
@@ -254,6 +311,25 @@ class CDeclarationRemoval(ASTRemoval):
             self.removed_nodes.append(node.parent)
         else:
             self.removed_nodes.append(node)
+
+    def add_declaration_to_removal_nodes(self, node, child_name, node_type):
+        for removal_node in self.nodes_to_remove:
+            if (
+                removal_node.name == child_name
+                and removal_node.node_type == "global_variable"
+                and node not in self.removed_nodes
+                and child_name not in self.removed_declarations
+            ):
+                self.removed_nodes.append(node)
+                self.removed_declarations.append(child_name)
+                if child_name not in self.removed_nodes_with_types:
+                    self.removed_nodes_with_types[child_name] = node_type
+                removal_parent_node = self.find_specific_parent_node(node, "if_statement")
+                if not removal_parent_node:
+                    removal_parent_node = self.find_specific_parent_node(node, "for_statement")
+                if removal_parent_node and removal_parent_node not in self.removed_nodes:
+                    self.removed_nodes.append(removal_parent_node)
+                return
 
     def visit_function_definition(self, node):
         for child in node.children:
@@ -295,18 +371,20 @@ class CDeclarationRemoval(ASTRemoval):
                 removal_parent_node = self.find_specific_parent_node(node, "if_statement")
             if not removal_parent_node:
                 removal_parent_node = self.find_specific_parent_node(node, "for_statement")
-            if not removal_parent_node:
-                breakpoint()
             if removal_parent_node not in self.removed_nodes:
                 self.removed_nodes.append(removal_parent_node)
         return
 
     def visit_expression_statement(self, node):
         for child in node.children:
-            if child.type in ["call_expression", "assignment_expression"]:
+            if child.type in ["call_expression", "assignment_expression", "update_expression"]:
                 for child_child in child.children:
                     if child_child.type == "identifier":
                         self.add_expression_to_removal_nodes(child_child, node)
+                    elif child_child.type == "field_expression":
+                        for child_child_child in child_child.children:
+                            if child_child_child.type == "identifier":
+                                self.add_expression_to_removal_nodes(child_child_child, node)
 
     def visit_goto_statement(self, node):
         if node not in self.goto_statements:
@@ -332,7 +410,131 @@ class CDeclarationRemoval(ASTRemoval):
                                 )
                 return
 
-    def remove_nodes(self, nodes_to_remove: set):
+    def visit_declaration(self, node):
+        node_type = None
+        for child in node.children:
+            if child.type == "primitive_type":
+                node_type = child.text.decode("utf-8")
+            if child.type == "identifier":
+                child_name = child.text.decode("utf-8")
+                self.add_declaration_to_removal_nodes(node, child_name, node_type)
+                return
+            elif child.type == "init_declarator":
+                for i, child_child in enumerate(child.children):
+                    if child_child.type == "=":
+                        previous_node_child = child_child
+                    if child_child.type == "identifier":
+                        child_name = child_child.text.decode("utf-8")
+                        if i < 2:
+                            self.add_declaration_to_removal_nodes(node, child_name, node_type)
+                        elif child_name in self.removed_declarations:
+                            self.replaced_assignment_declarations.append(
+                                (node, node_type, previous_node_child)
+                            )
+            elif child.type == "array_declarator":
+                for child_child in child.children:
+                    if child_child.type == "identifier":
+                        child_name = child_child.text.decode("utf-8")
+                        self.add_declaration_to_removal_nodes(node, child_name, node_type)
+                        return
+            elif child.type == "function_declarator":
+                for child_child in child.children:
+                    if child_child.type == "identifier":
+                        child_name = child_child.text.decode("utf-8")
+                        for removal_node in self.nodes_to_remove:
+                            if (
+                                removal_node.name == child_name
+                                and removal_node.node_type == "function"
+                                and node not in self.removed_nodes
+                            ):
+                                self.removed_nodes.append(node)
+                                return
+
+    def visit_if_statement(self, node):
+        for child in node.children:
+            if child.type == "parenthesized_expression":
+                for child_child in child.children:
+                    if child_child.type == "identifier":
+                        if child_child.text.decode("utf-8") in self.removed_declarations:
+                            self.removed_nodes.append(node)
+                        return
+
+    def visit_for_statement(self, node):
+        for child in node.children:
+            if child.type in ["call_expression", "assignment_expression", "update_expression"]:
+                for child_child in child.children:
+                    if child_child.type == "identifier":
+                        if child_child.text.decode("utf-8") in self.removed_declarations:
+                            self.removed_nodes.append(node)
+                        return
+
+    def visit_return_statement(self, node):
+        for i, child in enumerate(node.children):
+            if child.type == "return":
+                previous_node_child = child
+            if child.type == "identifier":
+                child_name = child.text.decode("utf-8")
+                if child_name in self.removed_declarations:
+                    self.replaced_assignment_declarations.append(
+                        (node, self.removed_nodes_with_types[child_name], previous_node_child)
+                    )
+
+    def visit_identifier(self, node):
+        node_text = node.text.decode("utf-8")
+        if node_text in self.removed_declarations:
+            if node_text in self.removed_nodes_with_types:
+                for replaced_node, _, _ in self.replaced_assignment_declarations:
+                    if self.has_parent_node(node, replaced_node):
+                        return
+                self.replaced_assignment_declarations.append(
+                    (node, self.removed_nodes_with_types[node.text.decode("utf-8")], None)
+                )
+
+
+    def replace_assignment_declarations(self, edits):
+        for node, node_type, previous_node_child in self.replaced_assignment_declarations:
+            overlapping_removal = False
+            for removal_node in self.removed_nodes:
+                if self.has_parent_node(node, removal_node):
+                    overlapping_removal = True
+                    break
+
+            if overlapping_removal:
+                continue
+            if previous_node_child:
+                dummy_value = f" {self.dummy_values[node_type]};".encode("utf-8")
+                edits.append({
+                    "start_byte": node.start_byte,
+                    "old_end_byte": node.end_byte,
+                    "new_end_byte": previous_node_child.end_byte,
+                    "new_end_byte_with_dummy": previous_node_child.end_byte + len(dummy_value),
+                    "start_point": node.start_point,
+                    "old_end_point": node.end_point,
+                    "new_end_point": previous_node_child.end_point,
+                    "new_end_point_with_dummy": (node.end_point[0],
+                                      previous_node_child.end_point[1]
+                                      + len(dummy_value.decode("utf-8"))),
+                    "new_text": dummy_value
+                })
+            else:
+                # When the removed declaration is an identifier
+                dummy_value = f"{self.dummy_values[node_type]}".encode("utf-8")
+                edits.append({
+                    "start_byte": node.start_byte,
+                    "old_end_byte": node.end_byte,
+                    "new_end_byte": node.start_byte,
+                    "new_end_byte_with_dummy": node.start_byte + len(dummy_value),
+                    "start_point": node.start_point,
+                    "old_end_point": node.end_point,
+                    "new_end_point": node.start_point,
+                    "new_end_point_with_dummy": (node.start_point[0],
+                                                 node.start_point[1]
+                                                 + len(dummy_value.decode("utf-8"))),
+                    "new_text": dummy_value
+                })
+
+
+    def remove_nodes(self, nodes_to_remove: set, replace_missing: bool = True):
         parser = parsers.get_parser(self.LANGUAGE)
         tree = parser.parse(self.content.encode("utf-8"))
 
@@ -371,25 +573,46 @@ class CDeclarationRemoval(ASTRemoval):
                 "old_end_point": end_point,
                 "new_end_point": start_point,
             })
+        if replace_missing:
+            self.replace_assignment_declarations(edits)
+            edits.sort(key=lambda edit: edit["start_byte"], reverse=True)
         for edit in edits:
             # Apply the edit to the tree
-            tree.edit(
-                start_byte=edit["start_byte"],
-                old_end_byte=edit["old_end_byte"],
-                new_end_byte=edit["new_end_byte"],
-                start_point=edit["start_point"],
-                old_end_point=edit["old_end_point"],
-                new_end_point=edit["new_end_point"],
-            )
-            # Update the source code
-            modified_code = (
-                modified_code[: edit["start_byte"]] +
-                modified_code[edit["start_byte"]:edit["new_end_byte"]] +
-                modified_code[edit["old_end_byte"]:]
-            )
+            if "new_text" in edit:
+                tree.edit(
+                    start_byte=edit["start_byte"],
+                    old_end_byte=edit["old_end_byte"],
+                    new_end_byte=edit["new_end_byte_with_dummy"],
+                    start_point=edit["start_point"],
+                    old_end_point=edit["old_end_point"],
+                    new_end_point=edit["new_end_point_with_dummy"],
+                )
+                # Update the source code
+                modified_code = (
+                    modified_code[: edit["start_byte"]] +
+                    modified_code[edit["start_byte"]:edit["new_end_byte"]] +
+                    edit["new_text"] +
+                    modified_code[edit["old_end_byte"]:]
+                )
+            else:
+                tree.edit(
+                    start_byte=edit["start_byte"],
+                    old_end_byte=edit["old_end_byte"],
+                    new_end_byte=edit["new_end_byte"],
+                    start_point=edit["start_point"],
+                    old_end_point=edit["old_end_point"],
+                    new_end_point=edit["new_end_point"],
+                )
+                # Update the source code
+                modified_code = (
+                    modified_code[: edit["start_byte"]] +
+                    modified_code[edit["start_byte"]:edit["new_end_byte"]] +
+                    modified_code[edit["old_end_byte"]:]
+                )
+
         parser = parsers.get_parser(self.LANGUAGE)
         updated_tree = parser.parse(modified_code, tree)
-        return updated_tree.text.decode("utf-8")
+        return remove_empty_lines(updated_tree.text.decode("utf-8"))
 
 
 AST_REMOVALS = {
@@ -403,7 +626,9 @@ if __name__ == "__main__":
     content = utils.read_file(file_name)
     modifier = CDeclarationRemoval(content, nx.DiGraph())
     updated_tree = modifier.remove_nodes(
-        {DeclarationNode("safe_lshift_func_int16_t_s_s", "function", None)})
+        # {DeclarationNode("func_129", "function", None)}
+        {DeclarationNode("g_3", "declaration", None)}
+    )
     with open("test_c_file.c", "w") as f:
         f.write(updated_tree)
     # print(updated_tree)

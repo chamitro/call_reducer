@@ -180,26 +180,47 @@ class CGraphBuilder(GraphBuilder):
                                 self.add_function_declaration_node(child_child_child)
                                 break
 
-
     def exit_function_definition(self, node):
         self.pop_declaration()
         self.current_function = None  # Clear current function context
 
+    def add_global_variable(self, var_name):
+        if self.current_function:
+            var_node = DeclarationNode(var_name, "global_variable", self.current_function)
+            self.graph.add_node(var_node)
+            self.push_declaration(var_node)
+            if self.current_function is not None:
+                self.graph.add_edge(self.current_function, var_node, label="var")
+        else:
+            # If no current function context, use the top of the stack (global scope)
+            parent_node = self.peek_declaration()
+            var_node = DeclarationNode(var_name, "global_variable", parent_node)
+            self.graph.add_node(var_node)
+            self.push_declaration(var_node)
+            if parent_node is not None:
+                self.graph.add_edge(parent_node, var_node, label="var")
+
     def visit_declaration(self, node):
+        global_variable = False
         for child in node.children:
-            if child.type == "identifier":
-                var_name = child.text.decode("utf-8")
-                if self.current_function:
-                    var_node = DeclarationNode(var_name, "var", self.current_function)
-                    self.graph.add_node(var_node)
-                    self.push_declaration(var_node)
-                    if self.current_function is not None:
-                        self.graph.add_edge(self.current_function, var_node, label="def")
-                    else:
-                        # If no current function context, use the top of the stack (global scope)
-                        parent_node = self.peek_declaration()
-                        if parent_node is not None:
-                            self.graph.add_edge(parent_node, var_node, label="def")
+            if (
+                child.type == "storage_class_specifier"
+                and child.text.decode("utf-8") == "static"
+            ):
+                global_variable = True
+                break
+        if global_variable:
+            for child in node.children:
+                if child.type == "identifier":
+                    var_name = child.text.decode("utf-8")
+                    self.add_global_variable(var_name)
+                elif child.type in [
+                    "init_declarator", "array_declarator", "function_declarator"
+                ]:
+                    for child_child in child.children:
+                        if child_child.type == "identifier":
+                            var_name = child_child.text.decode("utf-8")
+                            self.add_global_variable(var_name)
 
     def exit_declaration(self, node):
         pass
@@ -244,7 +265,7 @@ class CGraphBuilder(GraphBuilder):
                 self.graph.add_node(struct_node)
                 self.push_declaration(struct_node)
                 if parent_node is not None:
-                    self.graph.add_edge(parent_node, struct_node, label="def")
+                    self.graph.add_edge(parent_node, struct_node, label="struct")
 
     def exit_struct_specifier(self, node):
         pass
@@ -298,19 +319,20 @@ def build_graph_from_file(file_path: str, language: str) -> nx.DiGraph:
 
 
 if __name__ == '__main__':
-    file_path = '/home/imoraiti/Documents/Git/call_reducer/C/gcc-59903/small.c'
+    file_path = './C/gcc-59903/small.c'
     builder = CGraphBuilder()
     graph = builder.build_graph(file_path)
     print(graph)
-    import matplotlib.pyplot as plt
-
-    nx.draw(graph, with_labels=True, node_color='lightblue', edge_color='gray', node_size=2000, font_size=15,
-            font_weight='bold')
-
-    # Display the plot
-    plt.savefig("graph.png")
 
     # file_path = 'ext_changed.sol'
     # builder = SolidityGraphBuilder()
     # graph = builder.build_graph(file_path)
     # print(graph)
+
+    import matplotlib.pyplot as plt
+
+    nx.draw(graph, with_labels=False, node_color='lightblue', edge_color='gray',
+            node_size=2, font_size=5, font_weight='bold')
+
+    # Display the plot
+    plt.savefig("graph.png")

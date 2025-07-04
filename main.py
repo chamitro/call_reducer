@@ -60,14 +60,16 @@ def main():
     interesting = Interesting(graph, content,
                               prop_checker, args.language)
     passes = [
-        ["function"],
+        ["global_variable", "function"],
+        # ["function", "global_variable],
         # ["contract"],
         # ["event", "state_var", "struct", "var"]
     ]
     for pass_ in passes:
         interesting.mode = pass_
         perform_dd(interesting, lambda n: n.node_type in pass_,
-                   parallel=True)
+                   parallel=False)
+
     # passes = [
     #     ["function"],
     #     ["struct", "var"]

@@ -91,10 +91,7 @@ def test_c_program_validity_after_removal(updated_tree):
                             capture_output=True,
                             text=True)
     assert len(initial_result.stderr) == 0
-    assert len(initial_result.stderr) == 0
     assert len(result.stdout) == 0
-    assert len(result.stdout) == 0
-    assert len(result.stderr) == 0
     assert len(result.stderr) == 0
 
 

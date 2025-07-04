@@ -2,10 +2,16 @@
 #include <stdio.h>
 #include <stdbool.h>
 
+// Removal global static vars
+static uint32_t g_69 = 0x797CFCBFL;
+static uint8_t g_22 = 0x4CL;
+static int32_t g_465 = 0x5F3E33FAL;
+
 // Removal function
 static int16_t
 (safe_lshift_func_int16_t_s_s)(int16_t left, int right )
 {
+    uint8_t g_23 = g_22;
 
   return
 
@@ -15,12 +21,18 @@ static int16_t
     (left << ((int)right));
 }
 
-static uint32_t g_69 = 0x797CFCBFL;
-static uint8_t g_22 = 0x4CL;
-static int32_t g_465 = 0x5F3E33FAL;
+static int32_t
+(test_func)(uint8_t left, int right )
+{
+
+  return g_69;
+}
 
 int main() {
+    // Assignment expression
+    uint32_t test_g_69 = g_69;
     // If statement that includes removal function in condition
+    test_func(g_22, 6);
     if (safe_lshift_func_int16_t_s_s(6, 3) > 5)
     {
         int32_t l_67 = 0L;
