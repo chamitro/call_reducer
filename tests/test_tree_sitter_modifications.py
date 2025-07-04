@@ -9,8 +9,14 @@ from reducer.modifications import CDeclarationRemoval
 from reducer.parsers import parse
 
 REMOVAL_FUNCTION_NAME = "safe_lshift_func_int16_t_s_s"
+REMOVAL_GLOBAL_VAR_NAME_1 = "g_69"
+REMOVAL_GLOBAL_VAR_NAME_2 = "g_22"
+REMOVAL_GLOBAL_VAR_NAME_3 = "g_465"
 REMOVAL_FUNCTION_NODE_SET = {
-    DeclarationNode(REMOVAL_FUNCTION_NAME, "function", None)
+    DeclarationNode(REMOVAL_FUNCTION_NAME, "function", None),
+    DeclarationNode(REMOVAL_GLOBAL_VAR_NAME_1, "global_variable", None),
+    DeclarationNode(REMOVAL_GLOBAL_VAR_NAME_2, "global_variable", None),
+    DeclarationNode(REMOVAL_GLOBAL_VAR_NAME_3, "global_variable", None),
 }
 # TEST_FILE_NAME = "./C/gcc-59903/small.c"
 TEST_FILE_NAME = "./tests/utils/test_c_file.c"
@@ -88,6 +94,8 @@ def test_c_program_validity_after_removal(updated_tree):
     assert len(initial_result.stderr) == 0
     assert len(result.stdout) == 0
     assert len(result.stdout) == 0
+    assert len(result.stderr) == 0
+    assert len(result.stderr) == 0
 
 
 def test_c_function_definition_removal(updated_tree):
@@ -154,5 +162,5 @@ def test_c_overlapping_nodes_removal(updated_tree):
     pass
 
 
-def test_c_removals_small_c(small_c_tree):
-    breakpoint()
+# def test_c_removals_small_c(small_c_tree):
+#     breakpoint()

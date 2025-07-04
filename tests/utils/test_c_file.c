@@ -15,6 +15,9 @@ static int16_t
     (left << ((int)right));
 }
 
+static uint32_t g_69 = 0x797CFCBFL;
+static uint8_t g_22 = 0x4CL;
+static int32_t g_465 = 0x5F3E33FAL;
 
 int main() {
     // If statement that includes removal function in condition
@@ -38,6 +41,7 @@ int main() {
     // If statement that includes removal function in body
     if (true)
     {
+        ++g_69;
         int8_t l_2469;
         int16_t l_67_copy;
         l_2469 = (-1L);  // Expression statement that is not removed
@@ -72,4 +76,14 @@ int main() {
     {
         l_68 = safe_lshift_func_int16_t_s_s(6, i);
     }
+
+    if (g_22)
+    {
+        l_68 = safe_lshift_func_int16_t_s_s(6, i);
+    }
+    for (g_465 = 0; (g_465 >= 7); ++g_465)
+    {
+        l_68 = safe_lshift_func_int16_t_s_s(6, i);
+    }
 }
+
