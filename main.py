@@ -34,11 +34,20 @@ parser.add_argument(
     default="ext_changed.sol",
     help="Source file to minimize",
 )
+
 parser.add_argument(
     '--script',
     type=str,
     help='script to run"',
     default="./solidity2.sh"
+)
+
+parser.add_argument(
+    "--mode",
+    default="removal",
+    choices=['removal', 'replacement'],
+    help="Select whether the removal of variables should follow a removal or "
+         "replacement strategy"
 )
 args = parser.parse_args()
 
@@ -58,7 +67,7 @@ def main():
     content = utils.read_file(file_path)
 
     interesting = Interesting(graph, content,
-                              prop_checker, args.language)
+                              prop_checker, args.language, args.mode)
     passes = [
         ["global_variable", "function"],
         # ["function", "global_variable],

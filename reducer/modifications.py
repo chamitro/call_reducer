@@ -19,7 +19,7 @@ class ASTRemoval(parsers.TreeTraversal):
         self.replacements = []
 
     @abstractmethod
-    def remove_nodes(self, nodes_to_remove: set) -> str:
+    def remove_nodes(self, nodes_to_remove: set, mode: str) -> str:
         pass
 
 
@@ -121,7 +121,7 @@ class SolidityDeclarationRemoval(ASTRemoval):
                     case _:
                         current_node = current_node.parent
 
-    def remove_nodes(self, nodes_to_remove: set):
+    def remove_nodes(self, nodes_to_remove: set, mode: str):
         parser = parsers.get_parser(self.LANGUAGE)
         tree = parser.parse(self.content.encode("utf-8"))
         self.nodes_to_remove = nodes_to_remove
@@ -534,7 +534,7 @@ class CDeclarationRemoval(ASTRemoval):
                 })
 
 
-    def remove_nodes(self, nodes_to_remove: set, replace_missing: bool = True):
+    def remove_nodes(self, nodes_to_remove: set, mode: str):
         parser = parsers.get_parser(self.LANGUAGE)
         tree = parser.parse(self.content.encode("utf-8"))
 
@@ -573,12 +573,12 @@ class CDeclarationRemoval(ASTRemoval):
                 "old_end_point": end_point,
                 "new_end_point": start_point,
             })
-        if replace_missing:
+        if mode == "replacement":
             self.replace_assignment_declarations(edits)
             edits.sort(key=lambda edit: edit["start_byte"], reverse=True)
         for edit in edits:
             # Apply the edit to the tree
-            if "new_text" in edit:
+            if "new_text" in edit and mode == "replacement":
                 tree.edit(
                     start_byte=edit["start_byte"],
                     old_end_byte=edit["old_end_byte"],

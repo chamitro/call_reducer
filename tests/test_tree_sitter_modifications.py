@@ -42,10 +42,23 @@ Nodes that produce syntactical errors when removed from test_small.c
 """
 
 @pytest.fixture
-def updated_tree():
+def updated_tree_removal():
     content = utils.read_file(TEST_FILE_NAME)
     modifier = CDeclarationRemoval(content, nx.DiGraph())
-    updated_tree_code = modifier.remove_nodes(REMOVAL_FUNCTION_NODE_SET)
+    updated_tree_code = modifier.remove_nodes(REMOVAL_FUNCTION_NODE_SET, "removal")
+    with open(TEMP_TEST_FILE_NAME, 'w') as f:
+        f.write(updated_tree_code)
+    updated_tree = parse(TEMP_TEST_FILE_NAME, "c")
+    yield updated_tree
+    if os.path.exists(TEMP_TEST_FILE_NAME):
+        os.remove(TEMP_TEST_FILE_NAME)
+
+
+@pytest.fixture
+def updated_tree_replacement():
+    content = utils.read_file(TEST_FILE_NAME)
+    modifier = CDeclarationRemoval(content, nx.DiGraph())
+    updated_tree_code = modifier.remove_nodes(REMOVAL_FUNCTION_NODE_SET, "replacement")
     with open(TEMP_TEST_FILE_NAME, 'w') as f:
         f.write(updated_tree_code)
     updated_tree = parse(TEMP_TEST_FILE_NAME, "c")
@@ -56,16 +69,31 @@ def updated_tree():
 
 @pytest.fixture
 def initial_tree():
-    initial_tree = parse(TEST_FILE_NAME, "c")
+    initial_tree = parse(TEST_FILE_NAME,"c")
     return initial_tree
 
 
 @pytest.fixture
-def small_c_tree():
+def small_c_tree_removal():
     # small_c_tree = parse(TEST_SMALL_C, "c")
     content = utils.read_file(TEST_SMALL_C)
     modifier = CDeclarationRemoval(content, nx.DiGraph())
-    modifier.remove_nodes(TEST_SMALL_C_REMOVAL_FUNCTION_NODE_SET)
+    modifier.remove_nodes(
+        TEST_SMALL_C_REMOVAL_FUNCTION_NODE_SET, "removal"
+    )
+    return
+    # return updated_tree_code
+    # return small_c_tree
+
+
+@pytest.fixture
+def small_c_tree_replacement():
+    # small_c_tree = parse(TEST_SMALL_C, "c")
+    content = utils.read_file(TEST_SMALL_C)
+    modifier = CDeclarationRemoval(content, nx.DiGraph())
+    modifier.remove_nodes(
+        TEST_SMALL_C_REMOVAL_FUNCTION_NODE_SET, "replacement"
+    )
     return
     # return updated_tree_code
     # return small_c_tree
@@ -83,7 +111,11 @@ def find_nodes_of_type(root_node, type):
     return nodes_of_type
 
 
-def test_c_program_validity_after_removal(updated_tree):
+@pytest.mark.parametrize(
+    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement']
+)
+def test_c_program_validity_after_removal(updated_tree_fixture_name, request):
+    updated_tree = request.getfixturevalue(updated_tree_fixture_name)
     initial_result = subprocess.run(["gcc", TEST_FILE_NAME],
                             capture_output=True,
                             text=True)
@@ -95,7 +127,11 @@ def test_c_program_validity_after_removal(updated_tree):
     assert len(result.stderr) == 0
 
 
-def test_c_function_definition_removal(updated_tree):
+@pytest.mark.parametrize(
+    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement']
+)
+def test_c_function_definition_removal(updated_tree_fixture_name, request):
+    updated_tree = request.getfixturevalue(updated_tree_fixture_name)
     function_definition_nodes = find_nodes_of_type(
         updated_tree.root_node, "function_definition"
     )
@@ -110,7 +146,11 @@ def test_c_function_definition_removal(updated_tree):
                             assert child_child.text.decode("utf-8") != REMOVAL_FUNCTION_NAME
 
 
-def test_c_expression_statement_removal(initial_tree, updated_tree):
+@pytest.mark.parametrize(
+    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement']
+)
+def test_c_expression_statement_removal(initial_tree, updated_tree_fixture_name, request):
+    updated_tree = request.getfixturevalue(updated_tree_fixture_name)
     initial_expression_statement_nodes = find_nodes_of_type(
         initial_tree.root_node, "expression_statement"
     )
@@ -121,7 +161,11 @@ def test_c_expression_statement_removal(initial_tree, updated_tree):
     assert len(updated_expression_statement_nodes) >= 1
 
 
-def test_c_call_expression_removal(initial_tree, updated_tree):
+@pytest.mark.parametrize(
+    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement']
+)
+def test_c_call_expression_removal(initial_tree, updated_tree_fixture_name, request):
+    updated_tree = request.getfixturevalue(updated_tree_fixture_name)
     initial_call_expression_nodes = find_nodes_of_type(
         initial_tree.root_node, "call_expression"
     )
@@ -133,7 +177,11 @@ def test_c_call_expression_removal(initial_tree, updated_tree):
     assert len(updated_call_expression_nodes) < len(initial_call_expression_nodes)
 
 
-def test_c_for_statement_removal(initial_tree, updated_tree):
+@pytest.mark.parametrize(
+    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement']
+)
+def test_c_for_statement_removal(initial_tree, updated_tree_fixture_name, request):
+    updated_tree = request.getfixturevalue(updated_tree_fixture_name)
     initial_for_statement_nodes = find_nodes_of_type(
         initial_tree.root_node, "for_statement"
     )
@@ -144,7 +192,11 @@ def test_c_for_statement_removal(initial_tree, updated_tree):
     assert len(updated_for_statement_nodes) > 0
 
 
-def test_c_if_statement_removal(initial_tree, updated_tree):
+@pytest.mark.parametrize(
+    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement']
+)
+def test_c_if_statement_removal(initial_tree, updated_tree_fixture_name, request):
+    updated_tree = request.getfixturevalue(updated_tree_fixture_name)
     initial_if_statement_nodes = find_nodes_of_type(
         initial_tree.root_node, "if_statement"
     )
@@ -153,10 +205,6 @@ def test_c_if_statement_removal(initial_tree, updated_tree):
     )
     assert len(initial_if_statement_nodes) > len(updated_if_statement_nodes)
     assert len(updated_if_statement_nodes) > 0
-
-
-def test_c_overlapping_nodes_removal(updated_tree):
-    pass
 
 
 # def test_c_removals_small_c(small_c_tree):
