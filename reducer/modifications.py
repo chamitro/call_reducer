@@ -227,7 +227,7 @@ class CDeclarationRemoval(ASTRemoval):
 
             'struct': '{0}',
 
-            'array': '{0}',
+            'array': 'arr[30000]',
 }
 
     def visit_default(self, node):
@@ -308,10 +308,18 @@ class CDeclarationRemoval(ASTRemoval):
                 else:
                     self.removed_nodes.append(node)
 
+    def _get_node_type(self, child):
+        if child.type in ["primitive_type", "sized_type_specifier"]:
+            return child.text.decode("utf-8")
+        if child.type == "struct_specifier":
+            return "struct"
+        return None
+
     def visit_function_definition(self, node):
+        node_type = None
         for child in node.children:
-            if child.type == "primitive_type":
-                node_type = child.text.decode("utf-8")
+            if not node_type:
+                node_type = self._get_node_type(child)
             if child.type == "function_declarator":
                 for child_child in child.children:
                     if child_child.type == "identifier":
@@ -345,6 +353,11 @@ class CDeclarationRemoval(ASTRemoval):
             if child_child.type == "identifier":
                 variable_name = child_child.text.decode("utf-8")
                 if variable_name in self.removed_declarations:
+                    if self.mode == "replacement":
+                        self.replaced_assignment_declarations.append(
+                            (node, self.removed_nodes_with_types[variable_name], None)
+                        )
+                        return
                     removal_parent_node = self._find_expression_statement_removal_parent_node(node)
                     if removal_parent_node not in self.removed_nodes:
                         self.removed_nodes.append(removal_parent_node)
@@ -357,6 +370,11 @@ class CDeclarationRemoval(ASTRemoval):
                 removal_node.name == call_name
                 and removal_node.node_type == "function"
             ):
+                if self.mode == "replacement":
+                    self.replaced_assignment_declarations.append(
+                        (node, {"function": call_name}, None)
+                    )
+                    return
                 removal_parent_node = self._find_expression_statement_removal_parent_node(node)
                 if removal_parent_node not in self.removed_nodes:
                     self.removed_nodes.append(removal_parent_node)
@@ -473,8 +491,8 @@ class CDeclarationRemoval(ASTRemoval):
     def visit_declaration(self, node):
         node_type = None
         for child in node.children:
-            if child.type == "primitive_type":
-                node_type = child.text.decode("utf-8")
+            if not node_type:
+                node_type = self._get_node_type(child)
             if child.type == "identifier":
                 self._handle_declaration_identifier(child, node, node_type)
                 return
@@ -531,6 +549,8 @@ class CDeclarationRemoval(ASTRemoval):
 
     def replace_assignment_declarations(self, edits):
         for node, node_type, previous_node_child in self.replaced_assignment_declarations:
+            if isinstance(node_type, dict):
+                node_type = self.removed_nodes_with_types[node_type["function"]]
             overlapping_removal = False
             for removal_node in self.removed_nodes:
                 if self._has_parent_node(node, removal_node):
