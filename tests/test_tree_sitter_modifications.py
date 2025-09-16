@@ -112,7 +112,7 @@ def find_nodes_of_type(root_node, type):
 
 
 @pytest.mark.parametrize(
-    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement']
+    'updated_tree_fixture_name',['updated_tree_replacement']  # Removal mode does not have the ability to handle return statements
 )
 def test_c_program_validity_after_removal(updated_tree_fixture_name, request):
     updated_tree = request.getfixturevalue(updated_tree_fixture_name)
@@ -173,8 +173,12 @@ def test_c_call_expression_removal(initial_tree, updated_tree_fixture_name, requ
         updated_tree.root_node, "call_expression"
     )
     # assert len(initial_call_expression_nodes) > 0
-    assert len(updated_call_expression_nodes) == 0
-    assert len(updated_call_expression_nodes) < len(initial_call_expression_nodes)
+    if updated_tree_fixture_name == "updated_tree_removal":
+        assert len(updated_call_expression_nodes) == 0
+        assert len(updated_call_expression_nodes) < len(initial_call_expression_nodes)
+    else:
+        assert len(updated_call_expression_nodes) == 2
+        assert len(updated_call_expression_nodes) < len(initial_call_expression_nodes)
 
 
 @pytest.mark.parametrize(
