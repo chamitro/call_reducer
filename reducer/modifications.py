@@ -209,6 +209,7 @@ class CDeclarationRemoval(ASTRemoval):
             '_Bool': 'false',
 
             'void*': 'NULL',
+            'void': 'NULL',
             'char*': 'NULL',
             'int*': 'NULL',
             'float*': 'NULL',
@@ -288,9 +289,11 @@ class CDeclarationRemoval(ASTRemoval):
         child_name = child.text.decode("utf-8")
         if child_name not in self.removed_nodes_with_types:
             self.removed_nodes_with_types[child_name] = node_type
-        if (child_name in self.removed_declarations
-            and node not in self.removed_nodes):
-            self.removed_nodes.append(node)
+        if (
+            child_name in self.removed_declarations
+            and node not in self.removed_nodes
+        ):
+            return self.removed_nodes.append(node)
         for removal_node in self.nodes_to_remove:
             if (removal_node.name == child_name
                 and removal_node.node_type == "function"
@@ -306,7 +309,7 @@ class CDeclarationRemoval(ASTRemoval):
                                 ]
                             )
                 else:
-                    self.removed_nodes.append(node)
+                    return self.removed_nodes.append(node)
 
     def _get_node_type(self, child):
         if child.type in ["primitive_type", "sized_type_specifier"]:
@@ -354,14 +357,12 @@ class CDeclarationRemoval(ASTRemoval):
                 variable_name = child_child.text.decode("utf-8")
                 if variable_name in self.removed_declarations:
                     if self.mode == "replacement":
-                        self.replaced_assignment_declarations.append(
+                        return self.replaced_assignment_declarations.append(
                             (node, self.removed_nodes_with_types[variable_name], None)
                         )
-                        return
                     removal_parent_node = self._find_expression_statement_removal_parent_node(node)
                     if removal_parent_node not in self.removed_nodes:
-                        self.removed_nodes.append(removal_parent_node)
-                        return
+                        return self.removed_nodes.append(removal_parent_node)
 
     def _handle_call_expression_identifier(self, child, node, node_type):
         call_name = child.text.decode("utf-8")
@@ -371,14 +372,12 @@ class CDeclarationRemoval(ASTRemoval):
                 and removal_node.node_type == "function"
             ):
                 if self.mode == "replacement":
-                    self.replaced_assignment_declarations.append(
+                    return self.replaced_assignment_declarations.append(
                         (node, {"function": call_name}, None)
                     )
-                    return
                 removal_parent_node = self._find_expression_statement_removal_parent_node(node)
                 if removal_parent_node not in self.removed_nodes:
-                    self.removed_nodes.append(removal_parent_node)
-                    return
+                    return self.removed_nodes.append(removal_parent_node)
 
     def visit_call_expression(self, node):
         # call_expression uses variable from removed declaration in argument list
@@ -390,16 +389,43 @@ class CDeclarationRemoval(ASTRemoval):
                 self._handle_call_expression_identifier(child, node, None)
 
 
+    def _handle_expression_statement_identifier(self, child, node, node_type):
+        child_name = child.text.decode("utf-8")
+        if child_name not in self.removed_nodes_with_types:
+            self.removed_nodes_with_types[child_name] = node_type
+        if (
+            child_name in self.removed_declarations
+            and node not in self.removed_nodes
+        ):
+            if self.mode == "replacement":
+                return self.replaced_assignment_declarations.append(
+                    (node, self.removed_nodes_with_types[child_name], ";")
+                )
+            else:
+                return self.removed_nodes.append(node)
+        for removal_node in self.nodes_to_remove:
+            if (
+                removal_node.name == child_name
+                and removal_node.node_type == "function"
+                and node not in self.removed_nodes
+            ):
+                if self.mode == "replacement":
+                    return self.replaced_assignment_declarations.append(
+                        (node, self.removed_nodes_with_types[child_name], ";")
+                    )
+                else:
+                    return self.removed_nodes.append(node)
+
     def visit_expression_statement(self, node):
         for child in node.children:
             if child.type in ["call_expression", "assignment_expression", "update_expression"]:
                 for child_child in child.children:
                     if child_child.type == "identifier":
-                        self._handle_function_definition_removal(child_child, node, None)
+                        self._handle_expression_statement_identifier(child_child, node, None)
                     elif child_child.type == "field_expression":
                         for child_child_child in child_child.children:
                             if child_child_child.type == "identifier":
-                                self._handle_function_definition_removal(child_child_child, node, None)
+                                self._handle_expression_statement_identifier(child_child_child, node, None)
 
     def visit_goto_statement(self, node):
         if node not in self.goto_statements:
@@ -561,35 +587,40 @@ class CDeclarationRemoval(ASTRemoval):
                 continue
             if previous_node_child:
                 dummy_value = f" {self.dummy_values[node_type]};".encode("utf-8")
-                edits.append({
-                    "start_byte": node.start_byte,
-                    "old_end_byte": node.end_byte,
-                    "new_end_byte": previous_node_child.end_byte,
-                    "new_end_byte_with_dummy": previous_node_child.end_byte + len(dummy_value),
-                    "start_point": node.start_point,
-                    "old_end_point": node.end_point,
-                    "new_end_point": previous_node_child.end_point,
-                    "new_end_point_with_dummy": (node.end_point[0],
-                                      previous_node_child.end_point[1]
-                                      + len(dummy_value.decode("utf-8"))),
-                    "new_text": dummy_value
-                })
+                if previous_node_child == ";":
+                    new_end_byte = node.start_byte
+                    new_end_byte_with_dummy = node.start_byte + len(dummy_value)
+                    new_end_point = node.start_point
+                    new_end_point_with_dummy = (node.start_point[0],
+                                                node.start_point[1]
+                                                + len(dummy_value.decode("utf-8")))
+                else:
+                    new_end_byte = previous_node_child.end_byte
+                    new_end_byte_with_dummy = previous_node_child.end_byte + len(dummy_value)
+                    new_end_point = previous_node_child.end_point
+                    new_end_point_with_dummy = (node.end_point[0],
+                                                previous_node_child.end_point[1]
+                                                + len(dummy_value.decode("utf-8")))
             else:
                 # When the replaced declaration is an identifier
                 dummy_value = f"{self.dummy_values[node_type]}".encode("utf-8")
-                edits.append({
-                    "start_byte": node.start_byte,
-                    "old_end_byte": node.end_byte,
-                    "new_end_byte": node.start_byte,
-                    "new_end_byte_with_dummy": node.start_byte + len(dummy_value),
-                    "start_point": node.start_point,
-                    "old_end_point": node.end_point,
-                    "new_end_point": node.start_point,
-                    "new_end_point_with_dummy": (node.start_point[0],
-                                                 node.start_point[1]
-                                                 + len(dummy_value.decode("utf-8"))),
-                    "new_text": dummy_value
-                })
+                new_end_byte = node.start_byte
+                new_end_byte_with_dummy = node.start_byte + len(dummy_value)
+                new_end_point = node.start_point
+                new_end_point_with_dummy = (node.start_point[0],
+                                            node.start_point[1]
+                                            + len(dummy_value.decode("utf-8")))
+            edits.append({
+                "start_byte": node.start_byte,
+                "old_end_byte": node.end_byte,
+                "new_end_byte": new_end_byte,
+                "new_end_byte_with_dummy": new_end_byte_with_dummy,
+                "start_point": node.start_point,
+                "old_end_point": node.end_point,
+                "new_end_point": new_end_point,
+                "new_end_point_with_dummy": new_end_point_with_dummy,
+                "new_text": dummy_value
+            })
 
 
     def remove_nodes(self, nodes_to_remove: set, mode: str):
