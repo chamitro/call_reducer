@@ -138,8 +138,7 @@ def find_nodes_of_type(root_node, type):
 
 
 @pytest.mark.parametrize(
-    # 'updated_tree_fixture_name',['updated_tree_replacement', 'updated_tree_combination']  # Removal mode does not have the ability to handle return statements
-    'updated_tree_fixture_name',['updated_tree_combination']  # Removal mode does not have the ability to handle return statements
+    'updated_tree_fixture_name',['updated_tree_replacement', 'updated_tree_combination']  # Removal mode does not have the ability to handle return statements
 )
 def test_c_program_validity_after_removal(updated_tree_fixture_name, request):
     updated_tree = request.getfixturevalue(updated_tree_fixture_name)

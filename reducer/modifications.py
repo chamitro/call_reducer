@@ -361,9 +361,10 @@ class CDeclarationRemoval(ASTRemoval):
                         return self.replaced_assignment_declarations.append(
                             (node, self.removed_nodes_with_types[variable_name], None)
                         )
-                    removal_parent_node = self._find_expression_statement_removal_parent_node(node)
-                    if removal_parent_node not in self.removed_nodes:
-                        return self.removed_nodes.append(removal_parent_node)
+                    else:
+                        removal_parent_node = self._find_expression_statement_removal_parent_node(node)
+                        if removal_parent_node not in self.removed_nodes:
+                            return self.removed_nodes.append(removal_parent_node)
 
     def _handle_call_expression_identifier(self, child, node, node_type):
         call_name = child.text.decode("utf-8")
