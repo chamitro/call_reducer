@@ -68,6 +68,19 @@ def updated_tree_replacement():
 
 
 @pytest.fixture
+def updated_tree_combination():
+    content = utils.read_file(TEST_FILE_NAME)
+    modifier = CDeclarationRemoval(content, nx.DiGraph())
+    updated_tree_code = modifier.remove_nodes(REMOVAL_FUNCTION_NODE_SET, "combination")
+    with open(TEMP_TEST_FILE_NAME, 'w') as f:
+        f.write(updated_tree_code)
+    updated_tree = parse(TEMP_TEST_FILE_NAME, "c")
+    yield updated_tree
+    if os.path.exists(TEMP_TEST_FILE_NAME):
+        os.remove(TEMP_TEST_FILE_NAME)
+
+
+@pytest.fixture
 def initial_tree():
     initial_tree = parse(TEST_FILE_NAME,"c")
     return initial_tree
@@ -99,6 +112,19 @@ def small_c_tree_replacement():
     # return small_c_tree
 
 
+@pytest.fixture
+def small_c_tree_combination():
+    # small_c_tree = parse(TEST_SMALL_C, "c")
+    content = utils.read_file(TEST_SMALL_C)
+    modifier = CDeclarationRemoval(content, nx.DiGraph())
+    modifier.remove_nodes(
+        TEST_SMALL_C_REMOVAL_FUNCTION_NODE_SET, "combination"
+    )
+    return
+    # return updated_tree_code
+    # return small_c_tree
+
+
 def find_nodes_of_type(root_node, type):
     nodes_of_type = []
     for child in root_node.children:
@@ -112,7 +138,8 @@ def find_nodes_of_type(root_node, type):
 
 
 @pytest.mark.parametrize(
-    'updated_tree_fixture_name',['updated_tree_replacement']  # Removal mode does not have the ability to handle return statements
+    # 'updated_tree_fixture_name',['updated_tree_replacement', 'updated_tree_combination']  # Removal mode does not have the ability to handle return statements
+    'updated_tree_fixture_name',['updated_tree_combination']  # Removal mode does not have the ability to handle return statements
 )
 def test_c_program_validity_after_removal(updated_tree_fixture_name, request):
     updated_tree = request.getfixturevalue(updated_tree_fixture_name)
@@ -128,7 +155,7 @@ def test_c_program_validity_after_removal(updated_tree_fixture_name, request):
 
 
 @pytest.mark.parametrize(
-    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement']
+    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement', 'updated_tree_combination']
 )
 def test_c_function_definition_removal(updated_tree_fixture_name, request):
     updated_tree = request.getfixturevalue(updated_tree_fixture_name)
@@ -147,7 +174,7 @@ def test_c_function_definition_removal(updated_tree_fixture_name, request):
 
 
 @pytest.mark.parametrize(
-    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement']
+    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement', 'updated_tree_combination']
 )
 def test_c_expression_statement_removal(initial_tree, updated_tree_fixture_name, request):
     updated_tree = request.getfixturevalue(updated_tree_fixture_name)
@@ -162,7 +189,7 @@ def test_c_expression_statement_removal(initial_tree, updated_tree_fixture_name,
 
 
 @pytest.mark.parametrize(
-    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement']
+    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement', 'updated_tree_combination']
 )
 def test_c_call_expression_removal(initial_tree, updated_tree_fixture_name, request):
     updated_tree = request.getfixturevalue(updated_tree_fixture_name)
@@ -173,16 +200,16 @@ def test_c_call_expression_removal(initial_tree, updated_tree_fixture_name, requ
         updated_tree.root_node, "call_expression"
     )
     # assert len(initial_call_expression_nodes) > 0
-    if updated_tree_fixture_name == "updated_tree_removal":
-        assert len(updated_call_expression_nodes) == 0
+    if updated_tree_fixture_name == "updated_tree_replacement":
+        assert len(updated_call_expression_nodes) == 2
         assert len(updated_call_expression_nodes) < len(initial_call_expression_nodes)
     else:
-        assert len(updated_call_expression_nodes) == 2
+        assert len(updated_call_expression_nodes) == 0
         assert len(updated_call_expression_nodes) < len(initial_call_expression_nodes)
 
 
 @pytest.mark.parametrize(
-    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement']
+    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement', 'updated_tree_combination']
 )
 def test_c_for_statement_removal(initial_tree, updated_tree_fixture_name, request):
     updated_tree = request.getfixturevalue(updated_tree_fixture_name)
@@ -197,7 +224,7 @@ def test_c_for_statement_removal(initial_tree, updated_tree_fixture_name, reques
 
 
 @pytest.mark.parametrize(
-    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement']
+    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement', 'updated_tree_combination']
 )
 def test_c_if_statement_removal(initial_tree, updated_tree_fixture_name, request):
     updated_tree = request.getfixturevalue(updated_tree_fixture_name)

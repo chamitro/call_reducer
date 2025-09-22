@@ -44,10 +44,10 @@ parser.add_argument(
 
 parser.add_argument(
     "--mode",
-    default="removal",
-    choices=['removal', 'replacement'],
-    help="Select whether the removal of variables should follow a removal or "
-         "replacement strategy"
+    default="combination",
+    choices=['removal', 'replacement', 'combination'],
+    help="Select whether the removal of variables should follow a removal, "
+         "replacement or a combination strategy"
 )
 args = parser.parse_args()
 

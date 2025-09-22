@@ -228,7 +228,7 @@ class CDeclarationRemoval(ASTRemoval):
 
             'struct': '{0}',
 
-            'array': 'arr[30000]',
+            'array': 'array[31000]',
 }
 
     def visit_default(self, node):
@@ -248,7 +248,8 @@ class CDeclarationRemoval(ASTRemoval):
             "if_statement": self.visit_if_statement,
             "for_statement": self.visit_for_statement,
         }
-        if self.mode == "replacement":
+        if self.mode in ["replacement", "combination"]:
+
             visitors.update({
                 "return_statement": self.visit_return_statement,
                 "identifier": self.visit_identifier,
@@ -663,12 +664,12 @@ class CDeclarationRemoval(ASTRemoval):
                 "old_end_point": end_point,
                 "new_end_point": start_point,
             })
-        if mode == "replacement":
+        if mode in ["replacement", "combination"]:
             self.replace_assignment_declarations(edits)
             edits.sort(key=lambda edit: edit["start_byte"], reverse=True)
         for edit in edits:
             # Apply the edit to the tree
-            if "new_text" in edit and mode == "replacement":
+            if "new_text" in edit and mode in ["replacement", "combination"]:
                 tree.edit(
                     start_byte=edit["start_byte"],
                     old_end_byte=edit["old_end_byte"],
