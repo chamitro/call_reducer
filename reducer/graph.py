@@ -225,6 +225,22 @@ class CGraphBuilder(GraphBuilder):
     def exit_declaration(self, node):
         pass
 
+    def visit_for_statement(self, node):
+        for_name = "for_" + str(node.start_point[0])
+        for_node = DeclarationNode(for_name, "for_statement", None)
+        self.graph.add_node(for_node)
+
+    def exit_for_statement(self, node):
+        pass
+
+    def visit_if_statement(self, node):
+        if_name = "if_" + str(node.start_point[0])
+        if_node = DeclarationNode(if_name, "if_statement", None)
+        self.graph.add_node(if_node)
+
+    def exit_if_statement(self, node):
+        pass
+
     def visit_type_definition(self, node):
         for child in node.children:
             if child.type == "type_identifier":
@@ -284,6 +300,8 @@ class CGraphBuilder(GraphBuilder):
             "union_specifier": self.visit_union_specifier,
             "struct_specifier": self.visit_struct_specifier,
             "type_specifier": self.visit_type_specifier,
+            "for_statement": self.visit_for_statement,
+            "if_statement": self.visit_if_statement,
         }
         return visitors.get(node.type, self.visit_default)
 
@@ -295,6 +313,8 @@ class CGraphBuilder(GraphBuilder):
             "union_specifier": self.exit_union_specifier,
             "struct_specifier": self.exit_struct_specifier,
             "type_specifier": self.exit_type_specifier,
+            "for_statement": self.exit_for_statement,
+            "if_statement": self.exit_if_statement,
         }
         return exit_funcs.get(node.type, self.exit_default)
 

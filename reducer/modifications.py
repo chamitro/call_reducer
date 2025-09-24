@@ -535,6 +535,12 @@ class CDeclarationRemoval(ASTRemoval):
                 return
 
     def visit_if_statement(self, node):
+        for removal_node in self.nodes_to_remove:
+            if removal_node.node_type == "if_statement":
+                _, line_num = removal_node.name.split("_")
+                if str(node.start_point[0]) == line_num:
+                    self.removed_nodes.append(node)
+                    return
         for child in node.children:
             if child.type == "parenthesized_expression":
                 for child_child in child.children:
@@ -544,6 +550,12 @@ class CDeclarationRemoval(ASTRemoval):
                         return
 
     def visit_for_statement(self, node):
+        for removal_node in self.nodes_to_remove:
+            if removal_node.node_type == "for_statement":
+                _, line_num = removal_node.name.split("_")
+                if str(node.start_point[0]) == line_num:
+                    self.removed_nodes.append(node)
+                    return
         for child in node.children:
             if child.type in ["call_expression", "assignment_expression", "update_expression"]:
                 for child_child in child.children:

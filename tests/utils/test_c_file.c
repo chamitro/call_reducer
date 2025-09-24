@@ -97,5 +97,16 @@ int main() {
     {
         l_68 = safe_lshift_func_int16_t_s_s(6, i);
     }
+
+    // Removal for_statement
+    for (i = 0; i > 5; ++i) {
+        ++g_69;
+    }
+    // Removal if_statement
+    if (i > 5) {
+        ++g_69;
+    } else {
+        --g_69;
+    }
 }
 

@@ -12,11 +12,15 @@ REMOVAL_FUNCTION_NAME = "safe_lshift_func_int16_t_s_s"
 REMOVAL_GLOBAL_VAR_NAME_1 = "g_69"
 REMOVAL_GLOBAL_VAR_NAME_2 = "g_22"
 REMOVAL_GLOBAL_VAR_NAME_3 = "g_465"
+REMOVAL_FOR_STATEMENT = "for_101"
+REMOVAL_IF_STATEMENT = "if_105"
 REMOVAL_FUNCTION_NODE_SET = {
     DeclarationNode(REMOVAL_FUNCTION_NAME, "function", None),
     DeclarationNode(REMOVAL_GLOBAL_VAR_NAME_1, "global_variable", None),
     DeclarationNode(REMOVAL_GLOBAL_VAR_NAME_2, "global_variable", None),
     DeclarationNode(REMOVAL_GLOBAL_VAR_NAME_3, "global_variable", None),
+    DeclarationNode(REMOVAL_FOR_STATEMENT, "for_statement", None),
+    DeclarationNode(REMOVAL_IF_STATEMENT, "if_statement", None),
 }
 # TEST_FILE_NAME = "./C/gcc-59903/small.c"
 TEST_FILE_NAME = "./tests/utils/test_c_file.c"
@@ -220,6 +224,9 @@ def test_c_for_statement_removal(initial_tree, updated_tree_fixture_name, reques
     )
     assert len(initial_for_statement_nodes) > len(updated_for_statement_nodes)
     assert len(updated_for_statement_nodes) > 0
+    for for_statement_node in updated_for_statement_nodes:
+        _, line_num = REMOVAL_FOR_STATEMENT.split("_")
+        assert str(for_statement_node.start_point[0]) != line_num
 
 
 @pytest.mark.parametrize(
@@ -235,6 +242,9 @@ def test_c_if_statement_removal(initial_tree, updated_tree_fixture_name, request
     )
     assert len(initial_if_statement_nodes) > len(updated_if_statement_nodes)
     assert len(updated_if_statement_nodes) > 0
+    for if_statement_node in updated_if_statement_nodes:
+        _, line_num = REMOVAL_IF_STATEMENT.split("_")
+        assert str(if_statement_node.start_point[0]) != line_num
 
 
 # def test_c_removals_small_c(small_c_tree):

@@ -70,6 +70,7 @@ def main():
                               prop_checker, args.language, args.mode)
     passes = [
         ["global_variable", "function"],
+        ["for_statement", "if_statement"],
         # ["function", "global_variable],
         # ["contract"],
         # ["event", "state_var", "struct", "var"]
