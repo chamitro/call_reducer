@@ -149,7 +149,8 @@ class CGraphBuilder(GraphBuilder):
         self.local_variable_counter = 0
         self.declaration_stack: List[DeclarationNode] = []
         self.current_function = None
-        self.typedefs = set()  # Track typedef names to prevent duplications
+        self.structs = dict()
+        self.declarations = dict()
 
     def visit_default(self, node):
         pass
@@ -163,6 +164,7 @@ class CGraphBuilder(GraphBuilder):
         func_node = DeclarationNode(func_name, "function", parent_node)
         self.graph.add_node(func_node)
         self.push_declaration(func_node)
+        self.declarations[func_name] = func_node
         self.current_function = func_node  # Set the current function context
         if parent_node is not None:
             self.graph.add_edge(parent_node, func_node, label="def")
@@ -188,6 +190,7 @@ class CGraphBuilder(GraphBuilder):
         if self.current_function:
             var_node = DeclarationNode(var_name, "global_variable", self.current_function)
             self.graph.add_node(var_node)
+            self.declarations[var_name] = var_node
             self.push_declaration(var_node)
             if self.current_function is not None:
                 self.graph.add_edge(self.current_function, var_node, label="var")
@@ -196,6 +199,7 @@ class CGraphBuilder(GraphBuilder):
             parent_node = self.peek_declaration()
             var_node = DeclarationNode(var_name, "global_variable", parent_node)
             self.graph.add_node(var_node)
+            self.declarations[var_name] = var_node
             self.push_declaration(var_node)
             if parent_node is not None:
                 self.graph.add_edge(parent_node, var_node, label="var")
@@ -241,65 +245,59 @@ class CGraphBuilder(GraphBuilder):
     def exit_if_statement(self, node):
         pass
 
-    def visit_type_definition(self, node):
-        for child in node.children:
-            if child.type == "type_identifier":
-                typedef_name = child.text.decode("utf-8")
-                if typedef_name not in self.typedefs:
-                    typedef_node = DeclarationNode(typedef_name, "typedef", self.peek_declaration())
-                    self.graph.add_node(typedef_node)
-                    self.push_declaration(typedef_node)
-                    self.typedefs.add(typedef_name)  # Track typedef names
-                    if self.peek_declaration() is not None:
-                        self.graph.add_edge(self.peek_declaration(), typedef_node, label="def")
-                    break
+    def _handle_struct_declaration_parent(self, parent_node):
+        for child in parent_node.children:
+            if child.type == "identifier":
+                return child.text.decode("utf-8")
+            if child.type in ["init_declarator", "pointer_declarator", "array_declarator"]:
+                for child_child in child.children:
+                    if child_child.type == "identifier":
+                        return child_child.text.decode("utf-8")
 
-    def exit_type_definition(self, node):
-        pass
+    def _handle_struct_parameter_declaration_parent(self, parent_node):
+        function_declarator = parent_node.parent.parent
+        for child in function_declarator.children:
+            if child.type == "identifier":
+                return child.text.decode("utf-8")
 
-    def visit_union_specifier(self, node):
-        # We handle union_specifier like struct_specifier based on the previous implementation
-        parent_node = self.peek_declaration()
-        for child in node.children:
-            if child.type == "type_identifier":
-                struct_name = child.text.decode("utf-8")
-                struct_node = DeclarationNode(struct_name, "struct", parent_node)
-                self.graph.add_node(struct_node)
-                self.push_declaration(struct_node)
-                if parent_node is not None:
-                    self.graph.add_edge(parent_node, struct_node, label="def")
-
-    def exit_union_specifier(self, node):
-        pass
+    def _handle_struct_function_definition_parent(self, parent_node):
+        for child in parent_node.children:
+            if child.type == "function_declarator":
+                for child_child in child.children:
+                    if child_child.type == "identifier":
+                        return child_child.text.decode("utf-8")
 
     def visit_struct_specifier(self, node):
-        parent_node = self.peek_declaration()
+        parent_node = node.parent if len(node.children) < 3 else None
         for child in node.children:
             if child.type == "type_identifier":
                 struct_name = child.text.decode("utf-8")
-                struct_node = DeclarationNode(struct_name, "struct", parent_node)
-                self.graph.add_node(struct_node)
-                self.push_declaration(struct_node)
+                struct_node = DeclarationNode(struct_name, "struct", None)
+                if struct_name not in self.structs:
+                    self.structs[struct_name] = struct_node
+                    return self.graph.add_node(struct_node)
                 if parent_node is not None:
-                    self.graph.add_edge(parent_node, struct_node, label="struct")
+                    declaration_name = None
+                    if parent_node.type == "declaration":
+                        declaration_name = self._handle_struct_declaration_parent(parent_node)
+                    elif parent_node.type == "parameter_declaration":
+                        declaration_name = self._handle_struct_parameter_declaration_parent(parent_node)
+                    elif parent_node.type == "function_definition":
+                        declaration_name = self._handle_struct_function_definition_parent(parent_node)
+                    if declaration_name:
+                        if self.declarations.get(declaration_name) is not None:
+                            declaration = self.declarations.get(declaration_name)
+                            self.graph.add_edge(struct_node, declaration, label="struct")
+                    return
 
     def exit_struct_specifier(self, node):
-        pass
-
-    def visit_type_specifier(self, node):
-        pass
-
-    def exit_type_specifier(self, node):
         pass
 
     def get_node_visitor(self, node):
         visitors = {
             "function_definition": self.visit_function_definition,
             "declaration": self.visit_declaration,
-            "type_definition": self.visit_type_definition,
-            "union_specifier": self.visit_union_specifier,
             "struct_specifier": self.visit_struct_specifier,
-            "type_specifier": self.visit_type_specifier,
             "for_statement": self.visit_for_statement,
             "if_statement": self.visit_if_statement,
         }
@@ -309,10 +307,7 @@ class CGraphBuilder(GraphBuilder):
         exit_funcs = {
             "function_definition": self.exit_function_definition,
             "declaration": self.exit_declaration,
-            "type_definition": self.exit_type_definition,
-            "union_specifier": self.exit_union_specifier,
             "struct_specifier": self.exit_struct_specifier,
-            "type_specifier": self.exit_type_specifier,
             "for_statement": self.exit_for_statement,
             "if_statement": self.exit_if_statement,
         }

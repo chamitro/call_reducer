@@ -12,15 +12,19 @@ REMOVAL_FUNCTION_NAME = "safe_lshift_func_int16_t_s_s"
 REMOVAL_GLOBAL_VAR_NAME_1 = "g_69"
 REMOVAL_GLOBAL_VAR_NAME_2 = "g_22"
 REMOVAL_GLOBAL_VAR_NAME_3 = "g_465"
+REMOVAL_GLOBAL_VAR_NAME_4 = "g_466"
 REMOVAL_FOR_STATEMENT = "for_101"
 REMOVAL_IF_STATEMENT = "if_105"
+REMOCAL_STRUCT_SPECIFIER = "S0"
 REMOVAL_FUNCTION_NODE_SET = {
     DeclarationNode(REMOVAL_FUNCTION_NAME, "function", None),
     DeclarationNode(REMOVAL_GLOBAL_VAR_NAME_1, "global_variable", None),
     DeclarationNode(REMOVAL_GLOBAL_VAR_NAME_2, "global_variable", None),
     DeclarationNode(REMOVAL_GLOBAL_VAR_NAME_3, "global_variable", None),
+    DeclarationNode(REMOVAL_GLOBAL_VAR_NAME_4, "global_variable", None),
     DeclarationNode(REMOVAL_FOR_STATEMENT, "for_statement", None),
     DeclarationNode(REMOVAL_IF_STATEMENT, "if_statement", None),
+    DeclarationNode(REMOCAL_STRUCT_SPECIFIER, "struct", None),
 }
 # TEST_FILE_NAME = "./C/gcc-59903/small.c"
 TEST_FILE_NAME = "./tests/utils/test_c_file.c"
@@ -245,6 +249,22 @@ def test_c_if_statement_removal(initial_tree, updated_tree_fixture_name, request
     for if_statement_node in updated_if_statement_nodes:
         _, line_num = REMOVAL_IF_STATEMENT.split("_")
         assert str(if_statement_node.start_point[0]) != line_num
+
+@pytest.mark.parametrize(
+    'updated_tree_fixture_name',['updated_tree_removal', 'updated_tree_replacement', 'updated_tree_combination']
+)
+def test_c_struct_specifier_removal(initial_tree, updated_tree_fixture_name, request):
+    updated_tree = request.getfixturevalue(updated_tree_fixture_name)
+    initial_struct_specifier_nodes = find_nodes_of_type(
+        initial_tree.root_node, "struct_specifier"
+    )
+    updated_struct_specifier_nodes = find_nodes_of_type(
+        updated_tree.root_node, "struct_specifier"
+    )
+    if updated_tree_fixture_name == "updated_tree_replacement":
+        assert len(initial_struct_specifier_nodes) == len(updated_struct_specifier_nodes)
+    else:
+        assert len(initial_struct_specifier_nodes) > len(updated_struct_specifier_nodes)
 
 
 # def test_c_removals_small_c(small_c_tree):

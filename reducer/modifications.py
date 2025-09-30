@@ -1,6 +1,7 @@
 from abc import abstractmethod
 
 import networkx as nx
+
 from reducer import parsers
 from reducer.graph import DeclarationNode
 
@@ -226,7 +227,7 @@ class CDeclarationRemoval(ASTRemoval):
             'int64_t': '0xDEADBEEFDEADBEEF',
             'uint64_t': '0xDEADBEEFDEADBEEFULL',
 
-            'struct': '{0}',
+            'struct': '{}',
 
             'array': 'array[31000]',
 }
@@ -247,6 +248,7 @@ class CDeclarationRemoval(ASTRemoval):
             "declaration": self.visit_declaration,
             "if_statement": self.visit_if_statement,
             "for_statement": self.visit_for_statement,
+            "struct_specifier": self.visit_struct_specifier,
         }
         if self.mode in ["replacement", "combination"]:
 
@@ -424,7 +426,7 @@ class CDeclarationRemoval(ASTRemoval):
                 for child_child in child.children:
                     if child_child.type == "identifier":
                         self._handle_expression_statement_identifier(child_child, node, None)
-                    elif child_child.type == "field_expression":
+                    elif child_child.type in ["field_expression", "subscript_expression"]:
                         for child_child_child in child_child.children:
                             if child_child_child.type == "identifier":
                                 self._handle_expression_statement_identifier(child_child_child, node, None)
@@ -493,6 +495,8 @@ class CDeclarationRemoval(ASTRemoval):
                     self.replaced_assignment_declarations.append(
                         (node, node_type, previous_node_child)
                     )
+            if child_child.type == "array_declarator":
+                return self._handle_declaration_init_declarator(child_child, node, node_type)
 
     def _handle_declaration_array_declarator(self, child, node, node_type):
         for child_child in child.children:
@@ -586,6 +590,62 @@ class CDeclarationRemoval(ASTRemoval):
                     (node, self.removed_nodes_with_types[node.text.decode("utf-8")], None)
                 )
 
+    def _handle_struct_declaration(self, child, node, node_type):
+        if node_type == "parameter_declaration":
+            return
+        declaration_removal_types = [
+            "init_declarator", "pointer_declarator", "array_declarator"
+        ]
+        for child in node.children:
+            if child.type == "identifier":
+                self.removed_declarations.append(child.text.decode("utf-8"))
+                if self.mode == "replacement":
+                    return
+                else:
+                    return self.removed_nodes.append(node)
+            if child.type in declaration_removal_types:
+                for child_child in child.children:
+                    if child_child.type == "identifier":
+                        self.removed_declarations.append(child_child.text.decode("utf-8"))
+                        if self.mode != "replacement":
+                            return self.removed_nodes.append(node)
+                    if child_child.type == "array_declarator":
+                        for child_child_child in child_child.children:
+                            if child_child_child.type == "identifier":
+                                self.removed_declarations.append(child_child_child.text.decode("utf-8"))
+                                if self.mode != "replacement":
+                                    return self.removed_nodes.append(node)
+                                break
+                    if child_child.type == "=":
+                        previous_node_child = child_child
+                        return self.replaced_assignment_declarations.append(
+                            (node, "struct", previous_node_child)
+                        )
+
+    def visit_struct_specifier(self, node):
+        for child in node.children:
+            if child.type == "type_identifier":
+                struct_name = child.text.decode("utf-8")
+                removal_struct = False
+                for removal_node in self.nodes_to_remove:
+                    if (
+                        removal_node.node_type == "struct"
+                        and removal_node.name == struct_name
+                    ):
+                        if len(node.children) < 3:
+                            node_type = node.parent.type
+                            return self._handle_struct_declaration(node, node.parent, node_type)
+                        removal_struct = True
+                if not removal_struct:
+                    return
+            if child.type == "field_declaration_list":
+                for struct_fields in child.children:
+                    self.removed_nodes.extend(
+                        [
+                            struct_field for struct_field in struct_fields.children
+                            if struct_field.type not in ["{", "}"]
+                        ]
+                    )
 
     def replace_assignment_declarations(self, edits):
         for node, node_type, previous_node_child in self.replaced_assignment_declarations:
@@ -731,7 +791,7 @@ if __name__ == "__main__":
     modifier = CDeclarationRemoval(content, nx.DiGraph())
     updated_tree = modifier.remove_nodes(
         # {DeclarationNode("func_129", "function", None)}
-        {DeclarationNode("g_3", "declaration", None)}
+        {DeclarationNode("g_3", "declaration", None)}, "combination"
     )
     with open("test_c_file.c", "w") as f:
         f.write(updated_tree)

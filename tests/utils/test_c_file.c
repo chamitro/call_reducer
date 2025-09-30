@@ -6,6 +6,22 @@
 static uint32_t g_69 = 0x797CFCBFL;
 static uint8_t g_22 = 0x4CL;
 static int32_t g_465 = 0x5F3E33FAL;
+static int32_t g_466[2] = {0x5F3E33FAL, 0x5F3E33FAL};
+
+// Removal struct
+struct S0 {
+   int8_t f0;
+   int8_t f1;
+   uint32_t f2;
+   int32_t f3;
+   uint16_t f4;
+};
+static struct S0 g_283 = {0xB0L,-1L,0xF2B8033DL,0x5451DF1BL,0x022DL};
+struct S0 var;
+struct S0 *ptr;
+struct S0 arr[10];
+void func(struct S0 param);
+static struct S0 arr2[2] = {{0x6EL,1L,0UL,0x4AB730D5L,0UL},{0x6EL,1L,0UL,0x4AB730D5L,0UL}};
 
 // Removal function
 static int16_t
@@ -54,6 +70,7 @@ int main() {
     if (true)
     {
         ++g_69;
+        g_466[0] = 0;
         int8_t l_2469;
         int16_t l_67_copy;
         l_2469 = (-1L);  // Expression statement that is not removed
