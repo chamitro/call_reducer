@@ -297,9 +297,8 @@ class CDeclarationRemoval(ASTRemoval):
             and node not in self.removed_nodes
         ):
             return self.removed_nodes.append(node)
-        for removal_node in self.nodes_to_remove:
+        for removal_node in self.functions_to_remove:
             if (removal_node.name == child_name
-                and removal_node.node_type == "function"
                 and node not in self.removed_nodes):
                 if child_name == "main":
                     # keep main function but remove code
@@ -329,13 +328,11 @@ class CDeclarationRemoval(ASTRemoval):
             if child.type == "function_declarator":
                 for child_child in child.children:
                     if child_child.type == "identifier":
-                        self._handle_function_definition_removal(child_child, node, node_type)
-                        return
+                        return self._handle_function_definition_removal(child_child, node, node_type)
                     elif child_child.type == "parenthesized_declarator":
                         for child_child_child in child_child.children:
                             if child_child_child.type == "identifier":
-                                self._handle_function_definition_removal(child_child_child, node, node_type)
-                                return
+                                return self._handle_function_definition_removal(child_child_child, node, node_type)
 
     def _find_expression_statement_removal_parent_node(self, node):
         removal_parent_node = self._find_specific_parent_node(node, "expression_statement")
@@ -370,11 +367,8 @@ class CDeclarationRemoval(ASTRemoval):
 
     def _handle_call_expression_identifier(self, child, node, node_type):
         call_name = child.text.decode("utf-8")
-        for removal_node in self.nodes_to_remove:
-            if (
-                removal_node.name == call_name
-                and removal_node.node_type == "function"
-            ):
+        for removal_node in self.functions_to_remove:
+            if removal_node.name == call_name:
                 if self.mode == "replacement":
                     return self.replaced_assignment_declarations.append(
                         (node, {"function": call_name}, None)
@@ -407,10 +401,9 @@ class CDeclarationRemoval(ASTRemoval):
                 )
             else:
                 return self.removed_nodes.append(node)
-        for removal_node in self.nodes_to_remove:
+        for removal_node in self.functions_to_remove:
             if (
                 removal_node.name == child_name
-                and removal_node.node_type == "function"
                 and node not in self.removed_nodes
             ):
                 if self.mode == "replacement":
@@ -437,8 +430,7 @@ class CDeclarationRemoval(ASTRemoval):
 
     def _handle_go_to_labeled_statement(self, node):
         if node.parent is None:
-            self.removed_nodes.append(node)
-            return
+            return self.removed_nodes.append(node)
         if len(node.parent.children) <= 3:
             self.removed_nodes.append(node.parent)
         else:
@@ -465,10 +457,9 @@ class CDeclarationRemoval(ASTRemoval):
                 return
 
     def _add_declaration_to_removal_nodes(self, node, child_name, node_type):
-        for removal_node in self.nodes_to_remove:
+        for removal_node in self.global_variables_to_remove:
             if (
                 removal_node.name == child_name
-                and removal_node.node_type == "global_variable"
                 and node not in self.removed_nodes
                 and child_name not in self.removed_declarations
             ):
@@ -508,10 +499,9 @@ class CDeclarationRemoval(ASTRemoval):
         for child_child in child.children:
             if child_child.type == "identifier":
                 child_name = child_child.text.decode("utf-8")
-                for removal_node in self.nodes_to_remove:
+                for removal_node in self.functions_to_remove:
                     if (
                         removal_node.name == child_name
-                        and removal_node.node_type == "function"
                         and node not in self.removed_nodes
                     ):
                         self.removed_nodes.append(node)
@@ -526,40 +516,31 @@ class CDeclarationRemoval(ASTRemoval):
             if not node_type:
                 node_type = self._get_node_type(child)
             if child.type == "identifier":
-                self._handle_declaration_identifier(child, node, node_type)
-                return
+                return self._handle_declaration_identifier(child, node, node_type)
             elif child.type == "init_declarator":
-                self._handle_declaration_init_declarator(child, node, node_type)
-                return
+                return self._handle_declaration_init_declarator(child, node, node_type)
             elif child.type == "array_declarator":
-                self._handle_declaration_array_declarator(child, node, node_type)
-                return
+                return self._handle_declaration_array_declarator(child, node, node_type)
             elif child.type == "function_declarator":
-                self._handle_declaration_function_declarator(child, node, node_type)
-                return
+                return self._handle_declaration_function_declarator(child, node, node_type)
 
     def visit_if_statement(self, node):
-        for removal_node in self.nodes_to_remove:
-            if removal_node.node_type == "if_statement":
-                _, line_num = removal_node.name.split("_")
-                if str(node.start_point[0]) == line_num:
-                    self.removed_nodes.append(node)
-                    return
+        for removal_node in self.if_statements_to_remove:
+            _, line_num = removal_node.name.split("_")
+            if str(node.start_point[0]) == line_num:
+                return self.removed_nodes.append(node)
         for child in node.children:
             if child.type == "parenthesized_expression":
                 for child_child in child.children:
                     if child_child.type == "identifier":
                         if child_child.text.decode("utf-8") in self.removed_declarations:
-                            self.removed_nodes.append(node)
-                        return
+                            return self.removed_nodes.append(node)
 
     def visit_for_statement(self, node):
-        for removal_node in self.nodes_to_remove:
-            if removal_node.node_type == "for_statement":
-                _, line_num = removal_node.name.split("_")
-                if str(node.start_point[0]) == line_num:
-                    self.removed_nodes.append(node)
-                    return
+        for removal_node in self.for_statements_to_remove:
+            _, line_num = removal_node.name.split("_")
+            if str(node.start_point[0]) == line_num:
+                return self.removed_nodes.append(node)
         for child in node.children:
             if child.type in ["call_expression", "assignment_expression", "update_expression"]:
                 for child_child in child.children:
@@ -578,6 +559,7 @@ class CDeclarationRemoval(ASTRemoval):
                     self.replaced_assignment_declarations.append(
                         (node, self.removed_nodes_with_types[child_name], previous_node_child)
                     )
+                return
 
     def visit_identifier(self, node):
         node_text = node.text.decode("utf-8")
@@ -627,11 +609,8 @@ class CDeclarationRemoval(ASTRemoval):
             if child.type == "type_identifier":
                 struct_name = child.text.decode("utf-8")
                 removal_struct = False
-                for removal_node in self.nodes_to_remove:
-                    if (
-                        removal_node.node_type == "struct"
-                        and removal_node.name == struct_name
-                    ):
+                for removal_node in self.structs_to_remove:
+                    if removal_node.name == struct_name:
                         if len(node.children) < 3:
                             node_type = node.parent.type
                             return self._handle_struct_declaration(node, node.parent, node_type)
@@ -702,7 +681,12 @@ class CDeclarationRemoval(ASTRemoval):
         parser = parsers.get_parser(self.LANGUAGE)
         tree = parser.parse(self.content.encode("utf-8"))
 
-        self.nodes_to_remove = nodes_to_remove
+        self.functions_to_remove = [node for node in nodes_to_remove if node.node_type == "function"]
+        self.global_variables_to_remove = [node for node in nodes_to_remove if node.node_type == "global_variable"]
+        self.structs_to_remove = [node for node in nodes_to_remove if node.node_type == "struct"]
+        self.if_statements_to_remove = [node for node in nodes_to_remove if node.node_type == "if_statement"]
+        self.for_statements_to_remove = [node for node in nodes_to_remove if node.node_type == "for_statement"]
+
         self.traverse_node(tree.root_node)
         self.removed_nodes.sort(key=lambda node: node.end_byte, reverse=True)
 
