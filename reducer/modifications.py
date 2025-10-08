@@ -249,12 +249,12 @@ class CDeclarationRemoval(ASTRemoval):
             "if_statement": self.visit_if_statement,
             "for_statement": self.visit_for_statement,
             "struct_specifier": self.visit_struct_specifier,
+            "identifier": self.visit_identifier,
         }
         if self.mode in ["replacement", "combination"]:
 
             visitors.update({
                 "return_statement": self.visit_return_statement,
-                "identifier": self.visit_identifier,
             })
         return visitors.get(node.type, self.visit_default)
 
@@ -563,6 +563,18 @@ class CDeclarationRemoval(ASTRemoval):
 
     def visit_identifier(self, node):
         node_text = node.text.decode("utf-8")
+        if node_text in self.removed_declarations:
+            parent_node = self._find_specific_parent_node(node, "if_statement")
+            if parent_node is not None:
+                if self._find_specific_parent_node(node, "compound_statement") is None:
+                    return self.removed_nodes.append(parent_node)
+            parent_node = self._find_specific_parent_node(node, "for_statement")
+            if parent_node is not None:
+                if self._find_specific_parent_node(node, "compound_statement") is None:
+                    return self.removed_nodes.append(parent_node)
+        if self.mode == "removal":
+            return
+
         if node_text in self.removed_declarations:
             if node_text in self.removed_nodes_with_types:
                 for replaced_node, _, _ in self.replaced_assignment_declarations:
