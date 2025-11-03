@@ -69,7 +69,9 @@ def main():
     interesting = Interesting(graph, content,
                               prop_checker, args.language, args.mode)
     passes = [
+        ["for_statement", "if_statement"],
         ["global_variable", "function"],
+        ["struct"],
         ["for_statement", "if_statement"],
         # ["function", "global_variable],
         # ["contract"],
