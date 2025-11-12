@@ -126,7 +126,7 @@ class Interesting():
         self.graph.remove_nodes_from(nodes)
 
 
-def perform_dd(interesting, node_filter, parallel: bool = True):
+def perform_dd(interesting, node_filter, parallel: bool = False):
     dd_cls = picire.ParallelDD if parallel else picire.DD
     nodes = [n for n in interesting.graph.nodes() if node_filter(n)]
     cache = picire.parallel_dd.SharedCache(
