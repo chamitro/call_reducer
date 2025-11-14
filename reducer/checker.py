@@ -19,7 +19,11 @@ class BasicPropertyChecker():
                 #     breakpoint()
                 if "exit 3" in result.stdout.decode("utf-8"):
                     print("exit 3")
-                if "exit 3" not in result.stdout.decode("utf-8"):
+                if "exit 4" in result.stdout.decode("utf-8"):
+                    print("exit 4")
+                if ("exit 3" not in result.stdout.decode("utf-8") or
+                    "exit 4 " not in result.stdout.decode("utf-8")
+                ):
                     break
             return result.returncode
         except subprocess.CalledProcessError:

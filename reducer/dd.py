@@ -138,7 +138,7 @@ def perform_dd(interesting, node_filter, parallel: bool = False):
         dd_star=True,
         config_iterator=picire.iterator.CombinedIterator(
             False, picire.iterator.skip,
-            picire.iterator.random
+            picire.iterator.backward
         )
     )
     output_nodes = [x for x in dd_obj(nodes)]
