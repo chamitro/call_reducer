@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     subversion \
     git \
+    binutils \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up build directory
@@ -47,7 +48,11 @@ FROM ubuntu:14.04
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     libstdc++6 \
+    binutils \
+    gcc \
+    libc6-dev \
     && rm -rf /var/lib/apt/lists/*
+
 
 # Copy installed binaries from builder
 COPY --from=builder /usr/local /usr/local
