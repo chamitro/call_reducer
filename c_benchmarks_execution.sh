@@ -1,5 +1,7 @@
 #!/bin/bash
 
+sudo -v
+
 # Experiment Runner Script
 # Runs reduction experiments and logs results
 
@@ -110,11 +112,11 @@ run_perses_on_reduced() {
     local initial_line_count=$(count_lines "$FULL_PATH/$BASE_DIR/$folder/small.c")
 
     local start_time=$(date +%s)
-#    echo "sudo java -jar perses_deploy.jar --test-script '${FULL_PATH}/${BASE_DIR}/${folder}/test_r.sh' --input-file '${FULL_PATH}/${BASE_DIR}/${folder}/small.c' -o . 2>&1"
+#    echo "sudo java -jar perses_deploy.jar --test-script '${FULL_PATH}/${BASE_DIR}/${folder}/test_r.sh' --input-file '${FULL_PATH}/${BASE_DIR}/${folder}/small.c' -o ./perses_output 2>&1"
     local output=$(sudo java -jar perses_deploy.jar \
-                              --test-script "$FULL_PATH/$BASE_DIR/$folder/test_r.sh" \
+                              --test-script "$FULL_PATH/$BASE_DIR/$folder/perses_r.sh" \
                               --input-file "$FULL_PATH/$BASE_DIR/$folder/small.c" \
-                              -o . 2>&1)
+                              -o ./perses_output 2>&1)
     local exit_code=$?
     local end_time=$(date +%s)
     local exec_time=$((end_time - start_time))
@@ -153,9 +155,9 @@ run_perses() {
 
     local start_time=$(date +%s)
     local output=$(sudo java -jar perses_deploy.jar \
-                              --test-script "$FULL_PATH/$BASE_DIR/$folder/test_r.sh" \
+                              --test-script "$FULL_PATH/$BASE_DIR/$folder/perses_r.sh" \
                               --input-file "$FULL_PATH/$BASE_DIR/$folder/small_c_removal_reduction.c" \
-                              -o . 2>&1)
+                              -o ./perses_output 2>&1)
     local exit_code=$?
     local end_time=$(date +%s)
     local exec_time=$((end_time - start_time))
@@ -199,9 +201,9 @@ run_perses_baseline() {
 
     local start_time=$(date +%s)
     local output=$(sudo java -jar perses_deploy.jar \
-                              --test-script "$FULL_PATH/$BASE_DIR/$folder/test_r.sh" \
+                              --test-script "$FULL_PATH/$BASE_DIR/$folder/perses_r.sh" \
                               --input-file "$FULL_PATH/$BASE_DIR/$folder/small.c" \
-                              -o . 2>&1)
+                              -o ./perses_output 2>&1)
     local exit_code=$?
     local end_time=$(date +%s)
     local exec_time=$((end_time - start_time))
