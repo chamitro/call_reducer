@@ -21,17 +21,18 @@ count_lines() {
 # Function to extract token counts from perses output
 extract_perses_tokens() {
     local output="$1"
-    # Initial token count: look for "started at" line with #tokens=
-    local initial=$(echo "$output" | grep -oP "started at.*?#tokens=\K\d+" | head -1 || echo "N/A")
+    # Initial token count: look for "started at" line with #tokens= OR "New fixpoint iteration started. #Tokens="
+    local initial=$(echo "$output" | grep -oP "(started at.*?#tokens=|#Tokens=)\K\d+" | head -1 || echo "N/A")
     # Final token count: look for the final summary line "Reduction ratio is X/Y"
     local final=$(echo "$output" | grep -oP "Reduction ratio is \K\d+(?=/\d+)" | tail -1 || echo "N/A")
-    # If no summary found, try to get from fixpoint iterations
+    # If no summary found, try to get from the "Removed X token(s)" line before the ratio
+    if [ "$final" = "N/A" ]; then
+        # Extract from "ratio is X/Y" format
+        final=$(echo "$output" | grep -oP "ratio is \K\d+(?=/\d+)" | tail -1 || echo "N/A")
+    fi
+    # If still not found, try the last #Tokens= value
     if [ "$final" = "N/A" ]; then
         final=$(echo "$output" | grep -oP "#Tokens=\K\d+" | tail -1 || echo "N/A")
-    fi
-    # If still not found, try the ratio format
-    if [ "$final" = "N/A" ]; then
-        final=$(echo "$output" | grep -oP "ratio=\K\d+(?=/\d+)" | tail -1 || echo "N/A")
     fi
     echo "$initial,$final"
 }
@@ -90,6 +91,7 @@ run_greduce() {
     # Restore file after both scripts complete
     echo "[$(date)] Restoring small.c for $folder"
     git restore "./$BASE_DIR/$folder/small.c"
+    rm *.o
 
     return $exit_code
 }
@@ -233,6 +235,7 @@ run_perses_baseline() {
     # Restore file after baseline perses
     echo "[$(date)] Restoring small.c after baseline perses for $folder"
     git restore "./$BASE_DIR/$folder/small.c"
+    rm *.o
 
     return $exit_code
 }
