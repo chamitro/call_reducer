@@ -68,7 +68,7 @@ run_greduce() {
     local output=$(greduce --source-file "./$BASE_DIR/$folder/small.c" \
                                 --script "./$BASE_DIR/$folder/test_r.sh" \
                                 --language c \
-                                --mode "$mode" 2>&1)
+                                --mode "$mode")
     local exit_code=$?
     local end_time=$(date +%s)
     local exec_time=$((end_time - start_time))
@@ -91,7 +91,7 @@ run_greduce() {
     # Restore file after both scripts complete
     echo "[$(date)] Restoring small.c for $folder"
     git restore "./$BASE_DIR/$folder/small.c"
-    rm *.o
+    sudo rm *.o
 
     return $exit_code
 }
@@ -235,7 +235,7 @@ run_perses_baseline() {
     # Restore file after baseline perses
     echo "[$(date)] Restoring small.c after baseline perses for $folder"
     git restore "./$BASE_DIR/$folder/small.c"
-    rm *.o
+    sudo rm *.o
 
     return $exit_code
 }
@@ -292,6 +292,8 @@ main() {
 
     # Process each folder in C directory
     for folder in "$BASE_DIR"/*/ ; do
+        sudo rm *.o
+        sudo -v
         if [ -d "$folder" ]; then
             folder_name=$(basename "$folder")
             process_folder "$folder_name"
