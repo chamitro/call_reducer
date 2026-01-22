@@ -18,23 +18,16 @@ count_lines() {
     wc -l < "$1" | tr -d ' '
 }
 
-# Function to extract token counts from perses output
-extract_perses_tokens() {
-    local output="$1"
-    # Initial token count: look for "started at" line with #tokens= OR "New fixpoint iteration started. #Tokens="
-    local initial=$(echo "$output" | grep -oP "(started at.*?#tokens=|#Tokens=)\K\d+" | head -1 || echo "N/A")
-    # Final token count: look for the final summary line "Reduction ratio is X/Y"
-    local final=$(echo "$output" | grep -oP "Reduction ratio is \K\d+(?=/\d+)" | tail -1 || echo "N/A")
-    # If no summary found, try to get from the "Removed X token(s)" line before the ratio
-    if [ "$final" = "N/A" ]; then
-        # Extract from "ratio is X/Y" format
-        final=$(echo "$output" | grep -oP "ratio is \K\d+(?=/\d+)" | tail -1 || echo "N/A")
+# Function to count tokens using clang
+count_tokens_clang() {
+    local file="$1"
+    if [ ! -f "$file" ]; then
+        echo "N/A"
+        return
     fi
-    # If still not found, try the last #Tokens= value
-    if [ "$final" = "N/A" ]; then
-        final=$(echo "$output" | grep -oP "#Tokens=\K\d+" | tail -1 || echo "N/A")
-    fi
-    echo "$initial,$final"
+    # Use clang to tokenize and count (excludes whitespace and comments)
+    local token_count=$(gcc -E -P "$file" 2>/dev/null | tr -s '[:space:]' '\n' | grep -v '^$' | wc -l)
+    echo "$token_count"
 }
 
 # Function to log result
@@ -57,24 +50,26 @@ run_greduce() {
     local folder="$1"
     local mode="$2"
     sudo ./$BASE_DIR/$folder/test_r.sh $BASE_DIR/$folder/small.c
-    sudo rm small.o
+    sudo rm -f small.o
 
     echo "[$(date)] Running greduce --mode $mode for $folder"
 
-    # Get initial line count before greduce
+    # Get initial counts before greduce
     local initial_line_count=$(count_lines "./$BASE_DIR/$folder/small.c")
+    local initial_tokens=$(count_tokens_clang "./$BASE_DIR/$folder/small.c")
 
     local start_time=$(date +%s)
-    local output=$(greduce --source-file "./$BASE_DIR/$folder/small.c" \
+    nice -n 15 greduce --source-file "./$BASE_DIR/$folder/small.c" \
                                 --script "./$BASE_DIR/$folder/test_r.sh" \
                                 --language c \
-                                --mode "$mode")
+                                --mode "$mode"
     local exit_code=$?
     local end_time=$(date +%s)
     local exec_time=$((end_time - start_time))
 
-    # Count lines after reduction
+    # Count lines and tokens after reduction
     local final_line_count=$(count_lines "./$BASE_DIR/$folder/small.c")
+    local final_tokens=$(count_tokens_clang "./$BASE_DIR/$folder/small.c")
 
     # Determine status
     local status="success"
@@ -82,59 +77,53 @@ run_greduce() {
         status="failed"
     fi
 
-    # Log greduce result with initial and final line counts
-    log_result "$folder" "greduce_$mode" "$exec_time" "$initial_line_count" "$final_line_count" "N/A" "N/A" "$status"
+    # Log greduce result with initial and final counts
+    log_result "$folder" "greduce_$mode" "$exec_time" "$initial_line_count" "$final_line_count" "$initial_tokens" "$final_tokens" "$status"
 
     # Run perses on the reduced file
-    run_perses_on_reduced "$folder" "$mode"
+    run_perses "$folder" "$mode"
 
     # Restore file after both scripts complete
     echo "[$(date)] Restoring small.c for $folder"
     git restore "./$BASE_DIR/$folder/small.c"
-    sudo rm *.o
+    sudo rm -f *.o
 
     return $exit_code
 }
 
-# Function to run perses on the reduced file
-run_perses_on_reduced() {
+# Function to run perses
+run_perses() {
     local folder="$1"
     local mode="$2"
 
-    echo "[$(date)] Running perses on $mode reduced file for $folder"
+    echo "[$(date)] Running perses on $mode file for $folder"
 
-    # Check if the reduced file exists
+    # Check if the input file exists
     if [ ! -f "./$BASE_DIR/$folder/small.c" ]; then
         echo "[$(date)] Warning: small.c not found for $folder, skipping perses"
-        log_result "$folder" "perses_after_$mode" "0" "N/A" "N/A" "N/A" "N/A" "skipped_no_input"
         return 1
     fi
 
-    # Get initial line count
+    # Get initial counts before perses
     local initial_line_count=$(count_lines "$FULL_PATH/$BASE_DIR/$folder/small.c")
+    local initial_tokens=$(count_tokens_clang "$FULL_PATH/$BASE_DIR/$folder/small.c")
 
     local start_time=$(date +%s)
-#    echo "sudo java -jar perses_deploy.jar --test-script '${FULL_PATH}/${BASE_DIR}/${folder}/test_r.sh' --input-file '${FULL_PATH}/${BASE_DIR}/${folder}/small.c' -o ./perses_output 2>&1"
-    local output=$(sudo java -jar perses_deploy.jar \
+    nice -n 19 sudo java -jar perses_deploy.jar \
                               --test-script "$FULL_PATH/$BASE_DIR/$folder/perses_r.sh" \
                               --input-file "$FULL_PATH/$BASE_DIR/$folder/small.c" \
-                              -o ./perses_output 2>&1)
+                              -o ./perses_output
     local exit_code=$?
     local end_time=$(date +%s)
     local exec_time=$((end_time - start_time))
 
-    # Extract token counts
-    local tokens=$(extract_perses_tokens "$output")
-    local initial_tokens=$(echo "$tokens" | cut -d',' -f1)
-    local final_tokens=$(echo "$tokens" | cut -d',' -f2)
-
-    # Count lines after perses reduction (if output file exists)
+    # Count lines and tokens after perses reduction
     local final_line_count="N/A"
-    if [ -f "./temp_query_reduction_output.c" ]; then
-        final_line_count=$(count_lines "./temp_query_reduction_output.c")
-    elif [ -f "$FULL_PATH/$BASE_DIR/$folder/small.c" ]; then
-        # Perses might modify the file in place
-        final_line_count=$(count_lines "$FULL_PATH/$BASE_DIR/$folder/small.c")
+    local final_tokens="N/A"
+
+    if [ -f "./perses_output/small.c" ]; then
+        final_line_count=$(count_lines "./perses_output/small.c")
+        final_tokens=$(count_tokens_clang "./perses_output/small.c")
     fi
 
     # Determine status
@@ -146,96 +135,8 @@ run_perses_on_reduced() {
     # Log result with mode context
     log_result "$folder" "perses_after_$mode" "$exec_time" "$initial_line_count" "$final_line_count" "$initial_tokens" "$final_tokens" "$status"
 
-    return $exit_code
-}
-
-# Function to run perses (legacy - kept for compatibility)
-run_perses() {
-    local folder="$1"
-
-    echo "[$(date)] Running perses for $folder"
-
-    local start_time=$(date +%s)
-    local output=$(sudo java -jar perses_deploy.jar \
-                              --test-script "$FULL_PATH/$BASE_DIR/$folder/perses_r.sh" \
-                              --input-file "$FULL_PATH/$BASE_DIR/$folder/small_c_removal_reduction.c" \
-                              -o ./perses_output 2>&1)
-    local exit_code=$?
-    local end_time=$(date +%s)
-    local exec_time=$((end_time - start_time))
-
-    # Extract token counts
-    local tokens=$(extract_perses_tokens "$output")
-    local initial_tokens=$(echo "$tokens" | cut -d',' -f1)
-    local final_tokens=$(echo "$tokens" | cut -d',' -f2)
-
-    # Count lines of input file
-    local initial_line_count=$(count_lines "$FULL_PATH/$BASE_DIR/$folder/small_c_removal_reduction.c")
-    local final_line_count="N/A"
-
-    # Determine status
-    local status="success"
-    if [ $exit_code -ne 0 ]; then
-        status="failed"
-    fi
-
-    # Log result
-    log_result "$folder" "perses" "$exec_time" "$initial_line_count" "$final_line_count" "$initial_tokens" "$final_tokens" "$status"
-
-    return $exit_code
-}
-
-# Function to run perses on original file before any greduce
-run_perses_baseline() {
-    local folder="$1"
-
-    echo "[$(date)] Running baseline perses on original file for $folder"
-
-    # Check if the file exists
-    if [ ! -f "./$BASE_DIR/$folder/small.c" ]; then
-        echo "[$(date)] Warning: small.c not found for $folder, skipping baseline perses"
-        log_result "$folder" "perses_baseline" "0" "N/A" "N/A" "N/A" "N/A" "skipped_no_input"
-        return 1
-    fi
-
-    # Get initial line count
-    local initial_line_count=$(count_lines "$FULL_PATH/$BASE_DIR/$folder/small.c")
-
-    local start_time=$(date +%s)
-    local output=$(sudo java -jar perses_deploy.jar \
-                              --test-script "$FULL_PATH/$BASE_DIR/$folder/perses_r.sh" \
-                              --input-file "$FULL_PATH/$BASE_DIR/$folder/small.c" \
-                              -o ./perses_output 2>&1)
-    local exit_code=$?
-    local end_time=$(date +%s)
-    local exec_time=$((end_time - start_time))
-
-    # Extract token counts
-    local tokens=$(extract_perses_tokens "$output")
-    local initial_tokens=$(echo "$tokens" | cut -d',' -f1)
-    local final_tokens=$(echo "$tokens" | cut -d',' -f2)
-
-    # Count lines after perses reduction
-    local final_line_count="N/A"
-    if [ -f "./temp_query_reduction_output.c" ]; then
-        final_line_count=$(count_lines "./temp_query_reduction_output.c")
-    elif [ -f "$FULL_PATH/$BASE_DIR/$folder/small.c" ]; then
-        final_line_count=$(count_lines "$FULL_PATH/$BASE_DIR/$folder/small.c")
-    fi
-
-    # Determine status
-    local status="success"
-    if [ $exit_code -ne 0 ]; then
-        status="failed"
-    fi
-
-    # Log baseline result
-    log_result "$folder" "perses_baseline" "$exec_time" "$initial_line_count" "$final_line_count" "$initial_tokens" "$final_tokens" "$status"
-
-    # Restore file after baseline perses
-    echo "[$(date)] Restoring small.c after baseline perses for $folder"
-    git restore "./$BASE_DIR/$folder/small.c"
-    sudo rm *.o
+    # Clean up perses output directory
+    sudo rm -rf ./perses_output
 
     return $exit_code
 }
@@ -261,7 +162,7 @@ process_folder() {
     fi
 
     # Run baseline perses on original file first
-    run_perses_baseline "$folder"
+    run_perses "$folder" "baseline"
 
     # Run greduce with removal mode, then perses, then restore
     run_greduce "$folder" "removal"
@@ -292,7 +193,7 @@ main() {
 
     # Process each folder in C directory
     for folder in "$BASE_DIR"/*/ ; do
-        sudo rm *.o
+        sudo rm -f *.o
         sudo -v
         if [ -d "$folder" ]; then
             folder_name=$(basename "$folder")
