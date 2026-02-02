@@ -164,14 +164,14 @@ process_folder() {
     # Run baseline perses on original file first
     run_perses "$folder" "baseline"
 
-    # Run greduce with removal mode, then perses, then restore
-    run_greduce "$folder" "removal"
-
-    # Run greduce with combination mode, then perses, then restore
-    run_greduce "$folder" "combination"
-
-    # Run greduce with replacement mode, then perses, then restore
-    run_greduce "$folder" "replacement"
+#    # Run greduce with removal mode, then perses, then restore
+#    run_greduce "$folder" "removal"
+#
+#    # Run greduce with combination mode, then perses, then restore
+#    run_greduce "$folder" "combination"
+#
+#    # Run greduce with replacement mode, then perses, then restore
+#    run_greduce "$folder" "replacement"
 
     echo "[$(date)] Completed processing $folder"
     echo ""
@@ -192,12 +192,17 @@ main() {
     fi
 
     # Process each folder in C directory
+    count=0
     for folder in "$BASE_DIR"/*/ ; do
         sudo rm -f *.o
         sudo -v
         if [ -d "$folder" ]; then
             folder_name=$(basename "$folder")
             process_folder "$folder_name"
+            count=$((count + 1))
+        fi
+        if [ $count -ge 5 ]; then
+            break
         fi
     done
 
