@@ -53,6 +53,7 @@ then
     : # do nothing
 else
     echo "exit 1"
+    docker ps --filter "ancestor=gcc-4.8.2" --format "{{.ID}}" | xargs -r docker kill
     exit 1
 fi
 
@@ -66,6 +67,7 @@ ret=$?
 
 if [ $ret != 0 ] ; then
     echo "exit 2"
+    docker ps --filter "ancestor=gcc-4.8.2" --format "{{.ID}}" | xargs -r docker kill
     exit 1
 fi
 
@@ -74,6 +76,7 @@ ret=$?
 
 if [ $ret != 0 ] ; then
     echo "exit 3"
+    docker ps --filter "ancestor=gcc-4.8.2" --format "{{.ID}}" | xargs -r docker kill
     exit 1
 fi
 
@@ -85,6 +88,7 @@ timeout -s 9 $TIMEOUT ccomp -interp $CFILE >& /dev/null
 ret=$?
 if [ $ret != 0 ] ; then
     echo "exit 4"
+    docker ps --filter "ancestor=gcc-4.8.2" --format "{{.ID}}" | xargs -r docker kill
     exit 1
 fi
 
@@ -96,6 +100,7 @@ for cc in "${GOODCC[@]}" ; do
     ret=$?
     if [ $ret != 0 ] ; then
   echo "exit 5"
+  docker ps --filter "ancestor=gcc-4.8.2" --format "{{.ID}}" | xargs -r docker kill
 	exit 1
     fi
 
@@ -104,12 +109,14 @@ for cc in "${GOODCC[@]}" ; do
     ret=$?
     if [ $ret != 0 ] ; then
   echo "exit 6"
+  docker ps --filter "ancestor=gcc-4.8.2" --format "{{.ID}}" | xargs -r docker kill
 	exit 1
     fi
 
     # compare with reference: out0.txt
     if ! diff -q out0.txt out1.txt >/dev/null ; then
   echo "exit 7"
+  docker ps --filter "ancestor=gcc-4.8.2" --format "{{.ID}}" | xargs -r docker kill
 	exit 1
     fi
 done
@@ -126,6 +133,7 @@ for cc in "${BADCC[@]}" ; do
     ret=$?
     if [ $ret != 0 ] ; then
   echo "exit 8"
+  docker ps --filter "ancestor=gcc-4.8.2" --format "{{.ID}}" | xargs -r docker kill
 	exit 1
     fi
 
@@ -134,12 +142,14 @@ for cc in "${BADCC[@]}" ; do
     ret=$?
     if [ $ret != 0 ] ; then
   echo "exit 9"
+  docker ps --filter "ancestor=gcc-4.8.2" --format "{{.ID}}" | xargs -r docker kill
 	exit 1
     fi
 
     # compare with reference: out0.txt
     if diff -q out0.txt out2.txt >/dev/null ; then
   echo "exit 10"
+  docker ps --filter "ancestor=gcc-4.8.2" --format "{{.ID}}" | xargs -r docker kill
 	exit 1
     fi
 done

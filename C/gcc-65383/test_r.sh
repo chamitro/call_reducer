@@ -64,6 +64,7 @@ then
     : # do nothing
 else
     echo "exit 1"
+    docker ps --filter "ancestor=gcc-4.8" --format "{{.ID}}" | xargs -r docker kill
     exit 1
 fi
 
@@ -75,6 +76,7 @@ timeout -s 9 $TIMEOUTCCOMP ccomp -interp -fall $CFILE >& /dev/null
 ret=$?
 if [ "$ret" != 0 ] ; then
     echo "exit 2"
+    docker ps --filter "ancestor=gcc-4.8" --format "{{.ID}}" | xargs -r docker kill
     exit 1
 fi
 
@@ -90,6 +92,7 @@ if [ "$ret" != 0 ] ; then
     # interesting, save a copy
 #    cp $CFILE $DIR/`date +%j:%T`-compile-$CFILE
     echo "exit 3"
+    docker ps --filter "ancestor=gcc-4.8" --format "{{.ID}}" | xargs -r docker kill
     exit 1
 fi
 
@@ -99,12 +102,14 @@ ret=$?
 if [ "$ret" != 0 ] ; then
 #    cp $CFILE $DIR/`date +%j:%T`-exe-$CFILE
     echo "exit 4"
+    docker ps --filter "ancestor=gcc-4.8" --format "{{.ID}}" | xargs -r docker kill
     exit 1
 fi
 
 if grep -q "runtime error" out0.txt ; then
 #    cp $CFILE $DIR/`date +%j:%T`-result-$CFILE
     echo "exit 5"
+    docker ps --filter "ancestor=gcc-4.8" --format "{{.ID}}" | xargs -r docker kill
     exit 1
 fi
 
@@ -120,6 +125,7 @@ for cc in "${GOODCC[@]}" ; do
     ret=$?
     if [ "$ret" != 0 ] ; then
         echo "exit 6"
+        docker ps --filter "ancestor=gcc-4.8" --format "{{.ID}}" | xargs -r docker kill
         exit 1
     fi
 
@@ -128,12 +134,14 @@ for cc in "${GOODCC[@]}" ; do
     ret=$?
     if [ "$ret" != 0 ] ; then
         echo "exit 7"
+        docker ps --filter "ancestor=gcc-4.8" --format "{{.ID}}" | xargs -r docker kill
         exit 1
     fi
 
     # compare with reference: out0.txt
     if ! diff -q out0.txt out1.txt >/dev/null ; then
         echo "exit 8"
+        docker ps --filter "ancestor=gcc-4.8" --format "{{.ID}}" | xargs -r docker kill
         exit 1
     fi
 done
@@ -152,6 +160,7 @@ for cc in "${BADCC1[@]}" ; do
            ! grep 'PLEASE ATTACH THE FOLLOWING FILES TO THE BUG REPORT' out2.txt
         then
             echo "exit 9"
+            docker ps --filter "ancestor=gcc-4.8" --format "{{.ID}}" | xargs -r docker kill
             exit 1
         fi
     done
@@ -166,6 +175,7 @@ for cc in "${BADCC2[@]}" ; do
         ret=$?
         if [ "$ret" -ne 0 ] ; then
             echo "exit 10"
+            docker ps --filter "ancestor=gcc-4.8" --format "{{.ID}}" | xargs -r docker kill
             exit 1
         fi
 
@@ -182,6 +192,7 @@ for cc in "${BADCC2[@]}" ; do
         done
         if [ "$segfault_happens" = false ] ; then
             echo "exit 11"
+            docker ps --filter "ancestor=gcc-4.8" --format "{{.ID}}" | xargs -r docker kill
             exit 1
         fi
     done
@@ -196,6 +207,7 @@ for cc in "${BADCC3[@]}" ; do
         ret=$?
         if [ "$ret" != 0 ] ; then
             echo "exit 12"
+            docker ps --filter "ancestor=gcc-4.8" --format "{{.ID}}" | xargs -r docker kill
             exit 1
         fi
 
@@ -204,12 +216,14 @@ for cc in "${BADCC3[@]}" ; do
         ret=$?
         if [ "$ret" != 0 ] ; then
             echo "exit 13"
+            docker ps --filter "ancestor=gcc-4.8" --format "{{.ID}}" | xargs -r docker kill
             exit 1
         fi
 
         # compare with reference: out0.txt
         if diff -q out0.txt out2.txt >/dev/null ; then
             echo "exit 14"
+            docker ps --filter "ancestor=gcc-4.8" --format "{{.ID}}" | xargs -r docker kill
             exit 1
         fi
     done

@@ -26,6 +26,7 @@ for cc in "${GOODCC[@]}" ; do
   if [ $GOODCOMP -eq 1 ] ; then # does compile
     if [ $ret -ne 0 ] ; then
       echo "exit 1"
+      docker ps --filter "ancestor=gcc-4.9" --format "{{.ID}}" | xargs -r docker kill
       exit 1
     fi
   else # does not compile, so make sure it doesn't ICE
@@ -33,6 +34,7 @@ for cc in "${GOODCC[@]}" ; do
     grep 'PLEASE ATTACH THE FOLLOWING FILES TO THE BUG REPORT' out1.txt
     then
       echo "exit 2"
+      docker ps --filter "ancestor=gcc-4.9" --format "{{.ID}}" | xargs -r docker kill
       exit 1
     fi
   fi
@@ -53,12 +55,14 @@ for cc in "${BADCC[@]}" ; do
     grep ':[0-9]*: error: ' out2.txt | grep -E -v 'error: expected'  #conflicting|error: declaration|error: variable'
     then
       echo "exit 3"
+      docker ps --filter "ancestor=gcc-4.9" --format "{{.ID}}" | xargs -r docker kill
       exit 1
     fi
   else # gcc
     if ! grep 'internal compiler error: in output_constant_pool_2' out2.txt
     then
       echo "exit 4"
+      docker ps --filter "ancestor=gcc-4.9" --format "{{.ID}}" | xargs -r docker kill
       exit 1
     fi
   fi
