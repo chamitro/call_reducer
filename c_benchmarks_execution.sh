@@ -193,15 +193,20 @@ main() {
 
     # Process each folder in C directory
     count=0
+    skip=5
+    limit=14
     for folder in "$BASE_DIR"/*/ ; do
         sudo rm -f *.o
         sudo -v
         if [ -d "$folder" ]; then
+            count=$((count + 1))
+            if [ $count -le $skip ]; then
+              continue
+            fi
             folder_name=$(basename "$folder")
             process_folder "$folder_name"
-            count=$((count + 1))
         fi
-        if [ $count -ge 5 ]; then
+        if [ $count -ge $limit ]; then
             break
         fi
     done
