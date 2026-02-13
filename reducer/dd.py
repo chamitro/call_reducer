@@ -1,6 +1,7 @@
 import os
 import string
 import random
+import traceback
 
 import networkx as nx
 import picire
@@ -141,7 +142,13 @@ def perform_dd(interesting, node_filter, parallel: bool = False):
             picire.iterator.backward
         )
     )
-    output_nodes = [x for x in dd_obj(nodes)]
+    try:
+        output_nodes = [x for x in dd_obj(nodes)]
+    except picire.exception.ReductionError as e:
+        interesting.reset_state()
+        print("Reduction error")
+        print(traceback.format_exc())
+        return
     interesting.update_graph(
         [f for f in nodes if f not in output_nodes],
         remove_contracts=True,

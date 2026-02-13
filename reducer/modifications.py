@@ -1,3 +1,4 @@
+import traceback
 from abc import abstractmethod
 
 import networkx as nx
@@ -210,6 +211,8 @@ class CDeclarationRemoval(ASTRemoval):
             '_Bool': 'false',
 
             'void*': 'NULL',
+            None: 'NULL',
+            'None': 'NULL',
             'void': 'NULL',
             'char*': 'NULL',
             'int*': 'NULL',
@@ -687,7 +690,12 @@ class CDeclarationRemoval(ASTRemoval):
         self.if_statements_to_remove = [node for node in nodes_to_remove if node.node_type == "if_statement"]
         self.for_statements_to_remove = [node for node in nodes_to_remove if node.node_type == "for_statement"]
 
-        self.traverse_node(tree.root_node)
+        try:
+            self.traverse_node(tree.root_node)
+        except Exception as e:
+            print("Modification exception")
+            print(traceback.format_exc())
+            raise e
         self.removed_nodes.sort(key=lambda node: node.end_byte, reverse=True)
 
         edits = []
