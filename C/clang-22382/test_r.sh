@@ -1,5 +1,5 @@
 #!/bin/bash
-BADCC1=("docker run --rm -v $(pwd):/work clang-3.6.0 clang -O3 /work/$1 -o /work/t")
+BADCC1=("docker run --rm -v $(pwd):/work clang-3.6.0-assertions clang -O3 /work/$1 -o /work/t")
 BADCC2=()
 BADCC3=()
 MODE=-m64
@@ -152,7 +152,7 @@ for cc in "${BADCC1[@]}"; do
   rm -f ./t ./out2.txt
 
   # compile
-  (timeout -s 9 $TIMEOUTCC $cc >out2.txt 2>&1) >&/dev/null
+  timeout -s 9 $TIMEOUTCC $cc >out2.txt 2>&1
   if ! grep 'internal compiler error' out2.txt &&
     ! grep 'PLEASE ATTACH THE FOLLOWING FILES TO THE BUG REPORT' out2.txt; then
     echo "exit 9"
