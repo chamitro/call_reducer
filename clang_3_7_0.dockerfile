@@ -46,13 +46,18 @@ RUN cd llvm-build && make install
 FROM ubuntu:14.04
 
 # Install runtime dependencies
+# gcc-multilib ensures crt*.o files and multiarch lib paths are present,
+# fixing linker errors: cannot find crt1.o, crti.o, crtbegin.o, -lgcc, -lc, etc.
 RUN apt-get update && apt-get install -y \
     libstdc++6 \
     binutils \
     gcc \
     libc6-dev \
+    gcc-multilib \
     && rm -rf /var/lib/apt/lists/*
 
+# Symlink the multiarch library directory so the linker can find crt*.o and libgcc
+RUN ln -s /usr/lib/x86_64-linux-gnu /usr/lib64
 
 # Copy installed binaries from builder
 COPY --from=builder /usr/local /usr/local
@@ -67,4 +72,3 @@ RUN clang --version
 WORKDIR /workspace
 
 CMD ["/bin/bash"]
-
