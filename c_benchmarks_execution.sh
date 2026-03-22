@@ -165,13 +165,13 @@ process_folder() {
     run_perses "$folder" "baseline"
 
 #    # Run greduce with removal mode, then perses, then restore
-#    run_greduce "$folder" "removal"
-#
+    run_greduce "$folder" "removal"
+
 #    # Run greduce with combination mode, then perses, then restore
-#    run_greduce "$folder" "combination"
-#
+    run_greduce "$folder" "combination"
+
 #    # Run greduce with replacement mode, then perses, then restore
-#    run_greduce "$folder" "replacement"
+    run_greduce "$folder" "replacement"
 
     echo "[$(date)] Completed processing $folder"
     echo ""
@@ -192,23 +192,54 @@ main() {
     fi
 
     # Process each folder in C directory
-    count=0
-    skip=5
-    limit=14
+#    count=0
+#    skip=5
+#    limit=14
+    # Define the skip list
+    SKIP_LIST=(
+        "clang-22704"
+        "clang-23309"
+        "clang-25900"
+        "gcc-59903"
+        "gcc-60116"
+        "gcc-61383"
+        "gcc-61917"
+        "gcc-64990"
+        "gcc-65383"
+        "gcc-66186"
+        "gcc-66375"
+        "gcc-70127"
+        "gcc-70586"
+        "gcc-71626"
+    )
+
     for folder in "$BASE_DIR"/*/ ; do
         sudo rm -f *.o
         sudo -v
         if [ -d "$folder" ]; then
-            count=$((count + 1))
-            if [ $count -le $skip ]; then
-              continue
-            fi
+#            count=$((count + 1))
+#            if [ $count -le $skip ]; then
+#              continue
+#            fi
             folder_name=$(basename "$folder")
+
+            # Skip if folder_name is in the skip list
+            skip_folder=false
+            for skip_item in "${SKIP_LIST[@]}"; do
+                if [ "$folder_name" = "$skip_item" ]; then
+                    skip_folder=true
+                    break
+                fi
+            done
+            if [ "$skip_folder" = true ]; then
+                continue
+            fi
+
             process_folder "$folder_name"
         fi
-        if [ $count -ge $limit ]; then
-            break
-        fi
+#        if [ $count -ge $limit ]; then
+#            break
+#        fi
     done
 
     echo "=========================================="
