@@ -1,5 +1,5 @@
 #!/bin/bash
-BADCC1=("docker run --rm -v $(pwd):/work clang-3.6.0 clang -O3 /work/small.c -o /work/t")
+BADCC1=("docker run --rm -v $(pwd):/work clang-3.6.0-assertions clang -O3 /work/small.c -o /work/t")
 BADCC2=()
 BADCC3=()
 MODE=-m64
