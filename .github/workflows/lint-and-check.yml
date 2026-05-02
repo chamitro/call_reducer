@@ -1,0 +1,59 @@
+name: Lint and Type Check
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+
+    - name: Install Python dependencies
+      run: |
+        pip install pylint mypy
+        
+    - name: Lint Python files
+      run: |
+        pylint main.py delete_comments.py --fail-under=7.0
+        
+    - name: Type check Python files
+      run: |
+        mypy main.py delete_comments.py
+
+    - name: Install C dependencies
+      run: |
+        sudo apt-get install clang-format cppcheck
+
+    - name: Check C files with clang-format
+      run: |
+        clang-format -i *.c *.h
+
+    - name: Check C files with cppcheck
+      run: |
+        cppcheck --enable=all .
+
+    - name: Install Solidity dependencies
+      run: |
+        npm install -g solhint slither
+
+    - name: Lint Solidity files
+      run: |
+        solhint 'contracts/**/*.sol'
+
+    - name: Run Slither for security analysis
+      run: |
+        slither .
+
