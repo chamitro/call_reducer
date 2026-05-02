@@ -8,13 +8,12 @@ import picire
 
 from reducer import utils
 from reducer.modifications import AST_REMOVALS
-from reducer.checker import BasicPropertyChecker
 
 
 class Interesting():
     def __init__(self, graph: nx.DiGraph,
                  content,
-                 prop_checker: BasicPropertyChecker,
+                 prop_checker,
                  language: str,
                  mode: str):
         self.graph = graph
@@ -127,7 +126,9 @@ class Interesting():
         self.graph.remove_nodes_from(nodes)
 
 
-def perform_dd(interesting, node_filter, parallel: bool = False):
+def perform_dd(
+    interesting, node_filter, parallel: bool = False, language: str = 'solidity'
+):
     dd_cls = picire.ParallelDD if parallel else picire.DD
     nodes = [n for n in interesting.graph.nodes() if node_filter(n)]
     cache = picire.parallel_dd.SharedCache(
@@ -139,7 +140,7 @@ def perform_dd(interesting, node_filter, parallel: bool = False):
         dd_star=True,
         config_iterator=picire.iterator.CombinedIterator(
             False, picire.iterator.skip,
-            picire.iterator.backward
+            picire.iterator.random if language == 'solidity' else picire.iterator.backward
         )
     )
     try:

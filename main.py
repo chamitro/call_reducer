@@ -3,17 +3,17 @@ import time
 import resource
 import sys
 
-from reducer import utils, parsers
+from reducer import utils
 from reducer.dd import Interesting, perform_dd
-from reducer.checker import BasicPropertyChecker
+from reducer.checker import PROPERTY_CHECKERS
 from reducer.graph import build_graph_from_file
 
 resource.setrlimit(resource.RLIMIT_STACK, (2**29, -1))
 sys.setrecursionlimit(10**6)
 
 
-#example Solidity:greduce --script solidity2.sh
-#example C: greduce --source-file ./example.c --script ./cproperty.sh --language c
+#example Solidity: greduce --source-file ./Solidity/smart2/ext_changed.sol --script ./Solidity/smart2/solidity2.sh
+#example C: greduce --source-file "./C/gcc-59903/small.c" --script "./C/gcc-59903/test_r.sh" --language c --mode "$mode"
 
 # Argument parsing
 parser = argparse.ArgumentParser(
@@ -63,38 +63,35 @@ def main():
 
     print(args.script)
     print(file_path)
-    prop_checker = BasicPropertyChecker(file_path, args.script)
+    prop_checker = PROPERTY_CHECKERS[args.language](file_path, args.script)
     content = utils.read_file(file_path)
 
     interesting = Interesting(graph, content,
                               prop_checker, args.language, args.mode)
-    passes = [
-        # ["if_statement"]
-        ["for_statement", "if_statement"],
-        ["global_variable", "struct"],
-        ["function"],
-        ["for_statement", "if_statement"],
 
-        # ["function", "global_variable],
-        # ["contract"],
-        # ["event", "state_var", "struct", "var"]
+    passes = [
+        ["function"],
+        ["contract"],
+        ["event", "state_var", "struct", "var"]
     ]
+    parallel = True
+
+    if args.language == "c":
+        parallel = False
+        passes = [
+            ["for_statement", "if_statement"],
+            ["global_variable", "struct"],
+            ["function"],
+            ["for_statement", "if_statement"],
+        ]
+
     for pass_ in passes:
         interesting.mode = pass_
         perform_dd(interesting, lambda n: n.node_type in pass_,
-                   parallel=False)
+                   parallel=parallel, language=args.language)
 
-    # passes = [
-    #     ["function"],
-    #     ["struct", "var"]
-    # ]
-    # for pass_ in passes:
-    #     interesting.mode = pass_
-    #     perform_dd(interesting, lambda n: n.node_type in pass_,
-    #                parallel=True)
 
     end_time = time.time()
-    # Calculate the elapsed time
     elapsed_time = end_time - start_time
     print(f"Execution time: {elapsed_time} seconds")
 

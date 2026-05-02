@@ -55,7 +55,7 @@ To reduce a Solidity smart contract (e.g., `ext_changed.sol`) using the script `
 ```
 # Delete the comments in the smart contract source file
 
-python3 delete_comments.py ./Solidity/smart2/ext_changed
+python3 delete_comments.py --filepath  Solidity/smart2/ext_changed.sol
 
 # Install the required version of the Solidity compilerInstall the required version of the Solidity compiler
 
@@ -79,3 +79,6 @@ To run all benchmarks for Solidity, execute:
 ```
 
 In the folder `Solidity/smart*`, you will find the compiler version(`version`) and the property(`property`) for each smart contract.
+
+
+TODO: treesitter fir shows example of libs creation

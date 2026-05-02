@@ -8,6 +8,7 @@ version = "1.0"
 authors = [
     {name = "Charalambos Mitropoulos", email = "charalambos.mitropoulos@gmail.com"},
     {name = "Thodoris Sotiropoulos", email = "theosotr@windowslive.com"},
+    {name = "Ioanna Moraiti", email = "ioannamoraiti@outlook.com"},
 ]
 description = "Graph-based Program Reduction"
 readme = "README.md"
