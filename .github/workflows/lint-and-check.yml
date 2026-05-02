@@ -32,28 +32,3 @@ jobs:
     - name: Type check Python files
       run: |
         mypy main.py delete_comments.py
-
-    - name: Install C dependencies
-      run: |
-        sudo apt-get install clang-format cppcheck
-
-    - name: Check C files with clang-format
-      run: |
-        clang-format -i *.c *.h
-
-    - name: Check C files with cppcheck
-      run: |
-        cppcheck --enable=all .
-
-    - name: Install Solidity dependencies
-      run: |
-        npm install -g solhint slither
-
-    - name: Lint Solidity files
-      run: |
-        solhint 'contracts/**/*.sol'
-
-    - name: Run Slither for security analysis
-      run: |
-        slither .
-

@@ -4,7 +4,7 @@ import random
 import traceback
 
 import networkx as nx
-import picire
+import picire  # type: ignore
 
 from reducer import utils
 from reducer.modifications import AST_REMOVALS

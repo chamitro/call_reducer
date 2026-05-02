@@ -1,5 +1,6 @@
 import traceback
 from abc import abstractmethod
+from typing import Any
 
 import networkx as nx
 
@@ -14,11 +15,11 @@ def remove_empty_lines(source_code):
 
 
 class ASTRemoval(parsers.TreeTraversal):
-    def __init__(self, content, graph: nx.DiGraph):
+    def __init__(self, content: str, graph: nx.DiGraph) -> None:
         self.content = content
         self.graph = graph
-        self.removals = []
-        self.replacements = []
+        self.removals: list[tuple[int, int]] = []
+        self.replacements: list[dict[str, Any]] = []
 
     @abstractmethod
     def remove_nodes(self, nodes_to_remove: set, mode: str) -> str:
@@ -90,12 +91,6 @@ class SolidityDeclarationRemoval(ASTRemoval):
         event_name = node.children[1].text.decode("utf-8")
         print(f"Identified event for removal: {event_name}")  # Debug log
         self.removed_nodes.append(node)
-
-    def visit_function_definition(self, node):
-        function_name = node.children[1].text.decode("utf-8")
-        if any((node.name == function_name and node.node_type == "function")
-               for node in self.nodes_to_remove):
-            self.removed_nodes.append(node)
 
     def visit_call_expression(self, node):
         child = node.children[0]
@@ -677,18 +672,18 @@ class CDeclarationRemoval(ASTRemoval):
             })
 
 
-    def remove_nodes(self, nodes_to_remove: set, mode: str):
-        nodes_to_remove = sorted([node for node in nodes_to_remove],
+    def remove_nodes(self, nodes_to_remove: set, mode: str) -> str:
+        sorted_nodes: list[Any] = sorted([node for node in nodes_to_remove],
                                           key=lambda x: x.name)
         self.mode = mode
         parser = parsers.get_parser(self.LANGUAGE)
         tree = parser.parse(self.content.encode("utf-8"))
 
-        self.functions_to_remove = [node for node in nodes_to_remove if node.node_type == "function"]
-        self.global_variables_to_remove = [node for node in nodes_to_remove if node.node_type == "global_variable"]
-        self.structs_to_remove = [node for node in nodes_to_remove if node.node_type == "struct"]
-        self.if_statements_to_remove = [node for node in nodes_to_remove if node.node_type == "if_statement"]
-        self.for_statements_to_remove = [node for node in nodes_to_remove if node.node_type == "for_statement"]
+        self.functions_to_remove: list[Any] = [node for node in sorted_nodes if node.node_type == "function"]
+        self.global_variables_to_remove: list[Any] = [node for node in sorted_nodes if node.node_type == "global_variable"]
+        self.structs_to_remove: list[Any] = [node for node in sorted_nodes if node.node_type == "struct"]
+        self.if_statements_to_remove: list[Any] = [node for node in sorted_nodes if node.node_type == "if_statement"]
+        self.for_statements_to_remove: list[Any] = [node for node in sorted_nodes if node.node_type == "for_statement"]
 
         try:
             self.traverse_node(tree.root_node)

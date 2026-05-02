@@ -48,3 +48,8 @@ addopts = "-vv"
 testpaths = [
     "tests",
 ]
+
+[tool.mypy]
+[[tool.mypy.overrides]]
+module = "networkx.*"
+ignore_missing_imports = true

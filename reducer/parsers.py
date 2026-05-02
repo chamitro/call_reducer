@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from tree_sitter import Language, Parser
+from tree_sitter import Language, Parser  # type: ignore
 
 from reducer import utils
 

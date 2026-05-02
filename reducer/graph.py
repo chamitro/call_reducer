@@ -1,4 +1,4 @@
-from typing import NamedTuple, List, Any
+from typing import NamedTuple, List, Any, Optional, cast
 
 import networkx as nx
 
@@ -10,39 +10,42 @@ class DeclarationNode(NamedTuple):
     node_type: str
     parent: Any
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self.name, self.node_type, self.parent))
 
-    def __str__(self):
+    def __str__(self) -> str:
         node_name = f"{self.node_type}[{self.name}]"
         if self.parent is not None:
             return f"{str(self.parent)}.{node_name}"
         else:
             return node_name
 
-    __repr__ = __str__
+    def __repr__(self) -> str:
+        return self.__str__()
 
 
 class GraphBuilder(parsers.TreeTraversal):
-    LANGUAGE = None
+    LANGUAGE: Optional[str] = None
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.graph = nx.DiGraph()
+        self.declaration_stack: List[DeclarationNode] = []
 
-    def peek_declaration(self):
+    def peek_declaration(self) -> Optional[DeclarationNode]:
         if not self.declaration_stack:
             return None
         return self.declaration_stack[-1]
 
-    def push_declaration(self, node):
+    def push_declaration(self, node: DeclarationNode) -> None:
         self.declaration_stack.append(node)
 
-    def pop_declaration(self):
+    def pop_declaration(self) -> Optional[DeclarationNode]:
         if not self.declaration_stack:
             return None
         return self.declaration_stack.pop()
 
     def build_graph(self, source_file: str) -> nx.DiGraph:
+        assert self.LANGUAGE is not None, "LANGUAGE must be set in subclasses"
         tree = parsers.parse(source_file, self.LANGUAGE)
         root_node = tree.root_node
         self.traverse_node(root_node)
@@ -50,15 +53,14 @@ class GraphBuilder(parsers.TreeTraversal):
 
 
 class SolidityGraphBuilder(GraphBuilder):
-    LANGUAGE = "solidity"
+    LANGUAGE: str = "solidity"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.function_counter = 0
         self.state_variable_counter = 0
         self.local_variable_counter = 0
-        self.declaration_stack: List[DeclarationNode] = []
-        self.contracts: dict = {}
+        self.contracts: dict[str, DeclarationNode] = {}
 
     def visit_default(self, node):
         pass
@@ -140,17 +142,16 @@ class SolidityGraphBuilder(GraphBuilder):
 
 
 class CGraphBuilder(GraphBuilder):
-    LANGUAGE = "c"
+    LANGUAGE: str = "c"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.function_counter = 0
         self.state_variable_counter = 0
         self.local_variable_counter = 0
-        self.declaration_stack: List[DeclarationNode] = []
-        self.current_function = None
-        self.structs = dict()
-        self.declarations = dict()
+        self.current_function: Optional[DeclarationNode] = None
+        self.structs: dict[str, DeclarationNode] = {}
+        self.declarations: dict[str, DeclarationNode] = {}
 
     def visit_default(self, node):
         pass
@@ -320,7 +321,7 @@ GRAPH_BUILDERS = {
 }
 
 
-def get_graph_builder(language: str) -> GraphBuilder:
+def get_graph_builder(language: str) -> type[GraphBuilder]:
     builder = GRAPH_BUILDERS.get(language)
     if builder is None:
         raise Exception(
@@ -344,7 +345,7 @@ if __name__ == '__main__':
     # graph = builder.build_graph(file_path)
     # print(graph)
 
-    import matplotlib.pyplot as plt
+    import matplotlib.pyplot as plt  # type: ignore
 
     nx.draw(graph, with_labels=False, node_color='lightblue', edge_color='gray',
             node_size=2, font_size=5, font_weight='bold')

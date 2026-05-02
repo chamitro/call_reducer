@@ -17,7 +17,7 @@ class SolidityPropertyChecker():
 
             return result.returncode
         except subprocess.CalledProcessError:
-            return None
+            return -1
 
 
 class CPropertyChecker():
@@ -40,7 +40,7 @@ class CPropertyChecker():
                     break
             return result.returncode
         except subprocess.CalledProcessError:
-            return None
+            return -1
 
 
 PROPERTY_CHECKERS = {
