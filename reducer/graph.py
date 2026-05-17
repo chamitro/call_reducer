@@ -1,6 +1,5 @@
-from typing import NamedTuple, List, Any, Optional, cast
-
 import networkx as nx
+from typing import NamedTuple, List, Any, Optional
 
 from reducer import parsers
 

@@ -65,7 +65,7 @@ class Interesting():
         name = ''.join(random.sample(string.ascii_letters + string.digits, 5))
         if (self.language == 'solidity'):
             temp_file_path = f"{name}.sol"
-        else:
+        elif (self.language == 'c'):
             temp_file_path = f"{name}.c"
         with open(temp_file_path, 'w') as temp_file:
             temp_file.write(modified_content)
