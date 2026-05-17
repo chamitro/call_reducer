@@ -26,6 +26,7 @@ classifiers = [
 dependencies = [
     "networkx",
     "tree-sitter==0.21.0",
+    "picire",
 ]
 
 [tool.setuptools]
