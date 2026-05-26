@@ -98,20 +98,6 @@ class SolidityGraphBuilder(GraphBuilder):
     def exit_function_definition(self, node):
         self.pop_declaration()
 
-    def visit_modifier_definition(self, node):
-        # function_name = node.text.decode("utf-8")
-        # parent_node = self.peek_declaration()
-        # function_node = DeclarationNode(function_name, "function", parent_node)
-        # self.graph.add_node(function_node)
-        # self.push_declaration(function_node)
-        # if parent_node is not None:
-        #     self.graph.add_edge(parent_node, function_node, label="def")
-        pass
-
-    def exit_modifier_definition(self, node):
-        # self.pop_declaration()
-        pass
-
     def visit_event_definition(self, node):
         event_name = node.text.decode("utf-8")
         parent_node = self.peek_declaration()
@@ -125,7 +111,6 @@ class SolidityGraphBuilder(GraphBuilder):
             "contract_declaration": self.visit_contract_declaration,
             "interface_declaration": self.visit_contract_declaration,
             "function_definition": self.visit_function_definition,
-            "modifier_definition": self.visit_modifier_definition,
             "event_definition": self.visit_event_definition,
         }
         return visitors.get(node.type, self.visit_default)
@@ -135,7 +120,6 @@ class SolidityGraphBuilder(GraphBuilder):
             "contract_declaration": self.exit_contract_declaration,
             "interface_declaration": self.visit_contract_declaration,
             "function_definition": self.exit_function_definition,
-            "modifier_definition": self.exit_modifier_definition,
         }
         return exit_funcs.get(node.type, self.exit_default)
 
@@ -184,7 +168,7 @@ class CGraphBuilder(GraphBuilder):
 
     def exit_function_definition(self, node):
         self.pop_declaration()
-        self.current_function = None  # Clear current function context
+        self.current_function = None
 
     def add_global_variable(self, var_name):
         if self.current_function:
@@ -195,7 +179,6 @@ class CGraphBuilder(GraphBuilder):
             if self.current_function is not None:
                 self.graph.add_edge(self.current_function, var_node, label="var")
         else:
-            # If no current function context, use the top of the stack (global scope)
             parent_node = self.peek_declaration()
             var_node = DeclarationNode(var_name, "global_variable", parent_node)
             self.graph.add_node(var_node)
@@ -314,9 +297,162 @@ class CGraphBuilder(GraphBuilder):
         return exit_funcs.get(node.type, self.exit_default)
 
 
+class JavaGraphBuilder(GraphBuilder):
+    LANGUAGE = "java"
+
+    def __init__(self):
+        super().__init__()
+        self.function_counter = 0
+        self.state_variable_counter = 0
+        self.local_variable_counter = 0
+        self.declaration_stack: List[DeclarationNode] = []
+        self.classes: dict = {}
+
+    def visit_default(self, node):
+        pass
+
+    def exit_default(self, node):
+        pass
+
+    def visit_class_declaration(self, node):
+        class_name = ""
+        for n in node.children:
+            if n.type == "identifier":
+                class_name = n.text.decode("utf-8")
+                break
+        class_node = DeclarationNode(class_name, "class", None)
+        self.graph.add_node(class_node)
+        self.push_declaration(class_node)
+        self.classes[class_node.name] = class_node
+
+        for child in node.children:
+            if child.type == "superclass":
+                parent_name = child.text.decode("utf-8").split("extends ")[-1]
+                if parent_name != class_name:
+                    try:
+                        parent_node = self.classes[parent_name]
+                        self.graph.add_edge(parent_node, class_node,
+                                            label="inherits")
+                    except KeyError:
+                        continue
+
+    def visit_interface_declaration(self, node):
+        class_name = ""
+        for n in node.children:
+            if n.type == "identifier":
+                class_name = n.text.decode("utf-8")
+                break
+        class_node = DeclarationNode(class_name, "class", None, is_interface=True)
+        self.graph.add_node(class_node)
+        self.push_declaration(class_node)
+        self.classes[class_node.name] = class_node
+
+        for child in node.children:
+            if child.type == "superclass":
+                parent_name = child.text.decode("utf-8").split("extends ")[-1]
+                if parent_name != class_name:
+                    try:
+                        parent_node = self.classes[parent_name]
+                        self.graph.add_edge(parent_node, class_node,
+                                            label="inherits")
+                    except KeyError:
+                        continue
+
+    def exit_contract_declaration(self, ctx):
+        self.pop_declaration()
+
+    def visit_function_definition(self, node):
+        func_name = None
+        for n in node.children:
+            if n.type == "identifier":
+                func_name = n.text.decode("utf-8")
+                break
+
+        if func_name is None:
+            raise ValueError("Function name not found in node in visit_function_definition")
+        function_args = None
+        for child in node.children:
+            if child.type == "formal_parameters":
+                function_args = child.text.decode("utf-8")
+                break
+
+        parent_node = self.peek_declaration()
+        if node.type == "constructor_declaration":
+            func_node = DeclarationNode(func_name, "constructor", parent_node, function_args)
+        else:
+            func_node = DeclarationNode(func_name, "function", parent_node, function_args)
+        self.graph.add_node(func_node)
+        self.push_declaration(func_node)
+        self.current_function = func_node
+        if parent_node is not None:
+            self.graph.add_edge(parent_node, func_node, label="def")
+
+    def visit_field_declaration(self, node):
+        for child in node.children:
+            if child.type == "variable_declarator":
+                var_name_node = child.child_by_field_name("name")
+                if var_name_node:
+                    field_name = var_name_node.text.decode("utf-8")
+                    parent_node = self.peek_declaration()
+                    field_node = DeclarationNode(field_name, "field", parent_node)
+                    self.graph.add_node(field_node)
+                    if parent_node is not None:
+                        self.graph.add_edge(parent_node, field_node, label="def")
+
+    def visit_local_variable_declaration(self, node):
+
+        parent = self.peek_declaration()
+
+        type_node = node.child_by_field_name("type")
+
+        for decl in node.children:
+            if decl.type == "variable_declarator":
+                name_node = decl.child_by_field_name("name")
+                if not name_node:
+                    continue
+                var_name = name_node.text.decode("utf-8")
+                local_node = DeclarationNode(var_name, "local_variable", parent)
+                self.graph.add_node(local_node)
+                if parent is not None:
+                    self.graph.add_edge(parent, local_node, label="def")
+
+    def exit_function_definition(self, node):
+        self.pop_declaration()
+
+    def visit_event_definition(self, node):
+        event_name = node.text.decode("utf-8")
+        parent_node = self.peek_declaration()
+        event_node = DeclarationNode(event_name, "event", parent_node)
+        self.graph.add_node(event_node)
+        if parent_node is not None:
+            self.graph.add_edge(parent_node, event_node, label='def')
+
+    def get_node_visitor(self, node):
+        visitors = {
+            "class_declaration": self.visit_class_declaration,
+            "interface_declaration": self.visit_class_declaration,
+            "method_declaration": self.visit_function_definition,
+            "event_definition": self.visit_event_definition,
+            "field_declaration": self.visit_field_declaration,
+            "constructor_declaration": self.visit_function_definition,
+
+        }
+        return visitors.get(node.type, self.visit_default)
+
+    def get_node_exit(self, node):
+        exit_funcs = {
+            "contract_declaration": self.exit_contract_declaration,
+            "interface_declaration": self.exit_contract_declaration,
+            "function_definition": self.exit_function_definition,
+            "local_variable_declaration": self.visit_local_variable_declaration,
+        }
+        return exit_funcs.get(node.type, self.exit_default)
+
+
 GRAPH_BUILDERS = {
     "solidity": SolidityGraphBuilder,
     "c": CGraphBuilder,
+    "java": JavaGraphBuilder,
 }
 
 
@@ -331,23 +467,3 @@ def get_graph_builder(language: str) -> type[GraphBuilder]:
 def build_graph_from_file(file_path: str, language: str) -> nx.DiGraph:
     builder = get_graph_builder(language)
     return builder().build_graph(file_path)
-
-
-if __name__ == '__main__':
-    file_path = './C/gcc-59903/small.c'
-    builder = CGraphBuilder()
-    graph = builder.build_graph(file_path)
-    print(graph)
-
-    # file_path = 'ext_changed.sol'
-    # builder = SolidityGraphBuilder()
-    # graph = builder.build_graph(file_path)
-    # print(graph)
-
-    import matplotlib.pyplot as plt  # type: ignore
-
-    nx.draw(graph, with_labels=False, node_color='lightblue', edge_color='gray',
-            node_size=2, font_size=5, font_weight='bold')
-
-    # Display the plot
-    plt.savefig("graph.png")
