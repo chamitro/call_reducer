@@ -8,7 +8,7 @@ class DeclarationNode(NamedTuple):
     name: str
     node_type: str
     parent: Any
-    args: List[str] = None
+    args: Optional[List[str]] = None
 
     def __hash__(self):
         return hash((self.name, self.node_type, self.parent, self.args))

@@ -1492,9 +1492,8 @@ class JavaDeclarationRemoval(ASTRemoval):
             start = node.start_byte
             end = node.end_byte
             modified_code[start:end] = replacement_text
-        modified_code = modified_code.decode("utf-8")
-        tree = parser.parse(modified_code.encode("utf-8"))
-        self.content = modified_code
+        modified_code = modified_code.decode("utf-8")  # type: ignore[assignment]
+        self.content = modified_code  # type: ignore[assignment]
 
         result = modified_code
 
