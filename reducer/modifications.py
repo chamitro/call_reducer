@@ -1008,7 +1008,7 @@ class JavaDeclarationRemoval(ASTRemoval):
         
         Args:
             nodes_to_remove: Set of nodes to be removed
-            mode: Strategy for handling nodes - 'removal', 'replacement', or 'combination'
+            mode: Strategy for handling nodes - 'removal' or 'replacement'
                 - 'removal': Simply removes the identified nodes
                 - 'replacement': Replaces nodes with constant values based on their type
                 - 'combination': Iterates between replacement and removal until fixed point
@@ -1016,10 +1016,9 @@ class JavaDeclarationRemoval(ASTRemoval):
         Returns:
             Modified source code as a string
         """
-        if mode not in ["removal", "replacement", "combination"]:
+        if mode not in ["removal", "replacement"]:
             raise ValueError(
-                f"Unknown mode: {mode}. Must be 'removal', 'replacement', or "
-                f"'combination'."
+                f"Unknown mode: {mode}. Must be 'removal' or 'replacement'"
             )
     
         self.mode = mode

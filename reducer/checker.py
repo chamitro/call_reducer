@@ -57,7 +57,7 @@ class JavaPropertyChecker():
                                     text=False)
             return result.returncode
         except subprocess.CalledProcessError:
-            return None
+            return -1
 
 
 PROPERTY_CHECKERS = {

@@ -14,6 +14,7 @@ sys.setrecursionlimit(10**6)
 
 #example Solidity: greduce --source-file ./Solidity/smart2/ext_changed.sol --script ./Solidity/smart2/solidity2.sh
 #example C: greduce --source-file "./C/gcc-59903/small.c" --script "./C/gcc-59903/test_r.sh" --language c --mode "$mode"
+#example Java: greduce --source-file "./Java/generator_modified/iter_1/Main.java" --script "./Java/generator_modified/iter_1/run.sh" --language java --mode "$mode"
 
 # Argument parsing
 parser = argparse.ArgumentParser(
@@ -138,13 +139,6 @@ def main():
 
             ]
             fixed_point_reached = False
-            graph = build_graph_from_file(file_path, args.language)
-            prop_checker = JavaPropertyChecker(file_path, args.script)
-            content = utils.read_file(file_path)
-            interesting = Interesting(graph, content,
-                                      prop_checker, args.language)
-            interesting.removal_mode = "removal"
-
             remove_iteration_counter = 0
 
             while not fixed_point_reached:
@@ -155,7 +149,8 @@ def main():
                     prop_checker = JavaPropertyChecker(file_path, args.script)
                     content = utils.read_file(file_path)
                     interesting = Interesting(graph, content,
-                                              prop_checker, args.language)
+                                              prop_checker,
+                                              args.language, "removal")
                     interesting.mode = pass_
                     perform_dd(interesting, lambda n: n.node_type in pass_,
                                parallel=False)
@@ -172,13 +167,7 @@ def main():
                 ["class"],
             ]
             fixed_point_reached = False
-            graph = build_graph_from_file(file_path, args.language)
-            prop_checker = JavaPropertyChecker(file_path, args.script)
-            content = utils.read_file(file_path)
-            interesting = Interesting(graph, content,
-                                      prop_checker, args.language)
             interesting.removal_mode = "removal"
-
             remove_iteration_counter = 0
 
             while not fixed_point_reached:
@@ -189,7 +178,7 @@ def main():
                     prop_checker = JavaPropertyChecker(file_path, args.script)
                     content = utils.read_file(file_path)
                     interesting = Interesting(graph, content,
-                                              prop_checker, args.language)
+                                              prop_checker, args.language, "removal")
                     interesting.mode = pass_
                     perform_dd(interesting, lambda n: n.node_type in pass_,
                                parallel=False)
