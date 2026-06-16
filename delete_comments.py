@@ -1,3 +1,4 @@
+import argparse
 import re
 
 def remove_comments_from_solidity(solidity_file_path):
@@ -21,8 +22,18 @@ def remove_comments_from_solidity(solidity_file_path):
     with open(solidity_file_path, 'w', encoding='utf-8') as file:
         file.write(updated_content)
 
-# Example usage
-solidity_file_path = 'ext_changed.sol'  # Replace with your file path
-remove_comments_from_solidity(solidity_file_path)
-print("Comments removed from:", solidity_file_path)
+
+parser = argparse.ArgumentParser(
+    description=('Remove comments from solidity file')
+)
+
+parser.add_argument(
+    "--filepath",
+    required=True,
+)
+
+if __name__ == "__main__":
+    args = parser.parse_args()
+    remove_comments_from_solidity(args.filepath)
+    print("Comments removed from:", args.filepath)
 

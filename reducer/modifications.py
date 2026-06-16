@@ -1,356 +1,785 @@
-from abc import ABC, abstractmethod
-import re
+import traceback
+from abc import abstractmethod
+from typing import Any
 
 import networkx as nx
-from antlr4 import InputStream, CommonTokenStream, ParseTreeWalker
 
-from reducer.grammars.solidity.SolidityLexer import SolidityLexer
-from reducer.grammars.solidity.SolidityParser import SolidityParser
-from reducer.grammars.solidity.SolidityListener import SolidityListener
+from reducer import parsers
+from reducer.graph import DeclarationNode
 
-from reducer.grammars.c.CLexer import CLexer
-from reducer.grammars.c.CParser import CParser
-from reducer.grammars.c.CListener import CListener
 
-class ASTRemoval(ABC):
-    def __init__(self, tree, graph: nx.DiGraph):
-        self.tree = tree
+def remove_empty_lines(source_code):
+    lines = source_code.split("\n")
+    non_empty_lines = [line for line in lines if line.strip() != ""]
+    return "\n".join(non_empty_lines)
+
+
+class ASTRemoval(parsers.TreeTraversal):
+    def __init__(self, content: str, graph: nx.DiGraph) -> None:
+        self.content = content
         self.graph = graph
-        self.removals = []
-        self.replacements = []
+        self.removals: list[tuple[int, int]] = []
+        self.replacements: list[dict[str, Any]] = []
 
     @abstractmethod
-    def remove_nodes(self, source_code: str, nodes_to_remove: set,
-                     removed_nodes: set) -> str:
+    def remove_nodes(self, nodes_to_remove: set, mode: str) -> str:
         pass
 
-    @abstractmethod
-    def setup_parse_tree(self, source_code: str):
+
+class SolidityDeclarationRemoval(ASTRemoval):
+    LANGUAGE = "solidity"
+
+    def __init__(self, content, graph):
+        super().__init__(content, graph)
+        self.removed_nodes = []
+
+    def visit_default(self, node):
         pass
 
-class CDeclarationRemoval(CListener, ASTRemoval):
-    def __init__(self, tree, graph):
-        super().__init__(tree, graph)
-    
-    def remove_use_site(self, ctx):
-        text = ctx.getText()
-        print(self.nodes_to_remove)
-        print(f"eimaste stin remove_use_site kai to text einai:", text)
-        if any(node.name + "(" in text for node in self.nodes_to_remove):
-            equal_sign_index = text.find('=')
-            if equal_sign_index != -1:
-                start = ctx.start.start + equal_sign_index + 1
-                stop = ctx.stop.stop
-                if (stop < ctx.stop.stop
-                        and text[stop - ctx.start.start] == ';'):
-                    stop += 1
-                stop -= 1
-                self.removals.append((start, stop))
+    def exit_default(self, node):
+        pass
+
+    def get_node_visitor(self, node):
+        visitors = {
+            "function_definition": self.visit_function_definition,
+            "call_expression": self.visit_call_expression,
+            "modifier_definition": self.visit_modifier_definition,
+            "struct_definition": self.visit_struct_definition,
+            "variable_declaration": self.visit_variable_declaration,
+            "state_variable_declaration": self.visit_state_variable_declaration,
+            "event_definition": self.visit_event_definition,
+        }
+        return visitors.get(node.type, self.visit_default)
+
+    def get_node_exit(self, node):
+        exit_funcs = {
+        }
+        return exit_funcs.get(node.type, self.exit_default)
+
+    def visit_function_definition(self, node):
+        """Collects function nodes to be removed."""
+        function_name = node.children[1].text.decode("utf-8")
+        print(f"Identified function for removal: {function_name}")  # Debug log
+        self.removed_nodes.append(node)
+
+    def visit_modifier_definition(self, node):
+        """Collects modifier nodes to be removed."""
+        modifier_name = node.children[1].text.decode("utf-8")
+        print(f"Identified modifier for removal: {modifier_name}")  # Debug log
+        self.removed_nodes.append(node)
+
+    def visit_struct_definition(self, node):
+        """Collects struct nodes to be removed."""
+        struct_name = node.children[1].text.decode("utf-8")
+        print(f"Identified struct for removal: {struct_name}")  # Debug log
+        self.removed_nodes.append(node)
+
+    def visit_variable_declaration(self, node):
+        """Collects variable declaration nodes to be removed."""
+        variable_name = node.children[1].text.decode("utf-8")
+        print(f"Identified variable for removal: {variable_name}")  # Debug log
+        self.removed_nodes.append(node)
+
+    def visit_state_variable_declaration(self, node):
+        """Collects state variable nodes to be removed."""
+        state_variable_name = node.children[1].text.decode("utf-8")
+        print(f"Identified state variable for removal: {state_variable_name}")  # Debug log
+        self.removed_nodes.append(node)
+
+    def visit_event_definition(self, node):
+        """Collects event nodes to be removed."""
+        event_name = node.children[1].text.decode("utf-8")
+        print(f"Identified event for removal: {event_name}")  # Debug log
+        self.removed_nodes.append(node)
+
+    def visit_call_expression(self, node):
+        child = node.children[0]
+        assert child.type == "expression"
+        match child.children[0].type:
+            case "member_expression":
+                call_name = child.children[0].children[-1].text.decode("utf-8")
+            case "identifier":
+                call_name = child.children[0].text.decode("utf-8")
+            case _:
+                raise Exception("Unknown node")
+        if any(node.name == call_name for node in self.nodes_to_remove):
+            self.removed_nodes.append(node)
+            current_node = node
+            while True:
+                match current_node.type:
+                    case "assignment_expression":
+                        self.removed_nodes.remove(node)
+                        self.removed_nodes.append(current_node)
+                        break
+                    case "function_body":
+                        break
+                    case None:
+                        break
+                    case _:
+                        current_node = current_node.parent
+
+    def remove_nodes(self, nodes_to_remove: set, mode: str):
+        parser = parsers.get_parser(self.LANGUAGE)
+        tree = parser.parse(self.content.encode("utf-8"))
+        self.nodes_to_remove = nodes_to_remove
+        self.traverse_node(tree.root_node)
+        definitions = {
+            node for node in self.removed_nodes
+            if node.type in ["function_definition"]
+        }
+        self.removed_nodes.sort(key=lambda node: node.start_byte, reverse=True)
+        edits = []
+        modified_code = tree.text
+        for removed_node in self.removed_nodes:
+            if removed_node.type != "function_definition":
+                if any(removed_node.start_byte > n.start_byte and removed_node.end_byte < n.end_byte for n in definitions):
+                    continue
+            if removed_node.type == "assignment_expression":
+                edits.append({
+                    "start_byte": removed_node.start_byte,
+                    "old_end_byte": removed_node.end_byte,
+                    "new_end_byte": removed_node.children[0].end_byte,
+                    "start_point": removed_node.start_point,
+                    "old_end_point": removed_node.end_point,
+                    "new_end_point": removed_node.children[0].end_point,
+                })
             else:
-                self.removals.append((ctx.start.start, ctx.stop.stop))
-        for node in self.nodes_to_remove:
-                # Create a regex pattern to match the node name as a whole word
-                pattern = re.compile(r'\b' + re.escape(node.name) + r'\b')
-                if pattern.search(text):
-                    print(f"BIKAME, VRIKAME KAPOIO NODE NAME NA ADISTOIXEI STO TEXT:", text)
-                    self.removals.append((ctx.start.start, ctx.stop.stop))
+                edits.append({
+                    "start_byte": removed_node.start_byte,
+                    "old_end_byte": removed_node.end_byte,
+                    "new_end_byte": removed_node.start_byte,  # Remove content
+                    "start_point": removed_node.start_point,
+                    "old_end_point": removed_node.end_point,
+                    "new_end_point": removed_node.start_point,
+                })
+
+        for edit in edits:
+            # Apply the edit to the tree
+            tree.edit(
+                start_byte=edit["start_byte"],
+                old_end_byte=edit["old_end_byte"],
+                new_end_byte=edit["new_end_byte"],
+                start_point=edit["start_point"],
+                old_end_point=edit["old_end_point"],
+                new_end_point=edit["new_end_point"],
+            )
+            # Update the source code
+            modified_code = (
+                modified_code[: edit["start_byte"]] +
+                modified_code[edit["start_byte"]:edit["new_end_byte"]] +
+                modified_code[edit["old_end_byte"]:]
+            )
+        parser = parsers.get_parser(self.LANGUAGE)
+        updated_tree = parser.parse(modified_code, tree)
+        return updated_tree.text.decode("utf-8")
+
+
+class CDeclarationRemoval(ASTRemoval):
+    LANGUAGE = "c"
+
+    def __init__(self, content, graph):
+        super().__init__(content, graph)
+        self.removed_nodes = []
+        self.removed_declarations = []
+        self.goto_statements = []
+        self.replaced_assignment_declarations = []
+        self.removed_nodes_with_types = {}
+        self.dummy_values = {
+            'int': '0xDEADBEEF',
+            'short': '0xDEAD',
+            'long': '0xDEADBEEFDEADBEEF',
+            'long long': '0xDEADBEEFDEADBEEF',
+            'unsigned int': '0xDEADBEEFU',
+            'unsigned short': '0xDEADU',
+            'unsigned long': '0xDEADBEEFDEADBEEFUL',
+            'unsigned long long': '0xDEADBEEFDEADBEEFULL',
+
+            'char': "'X'",
+            'unsigned char': "'X'",
+            'signed char': "'X'",
+
+            'float': '0xDEADBEEF',
+            'double': '0xDEADBEEFDEADBEEF',
+            'long double': '0xDEADBEEFDEADBEEF',
+
+            'bool': 'false',
+            '_Bool': 'false',
+
+            'void*': 'NULL',
+            None: 'NULL',
+            'None': 'NULL',
+            'void': 'NULL',
+            'char*': 'NULL',
+            'int*': 'NULL',
+            'float*': 'NULL',
+            'double*': 'NULL',
+
+            'size_t': '0xDEADBEEF',
+            'ssize_t': '0xDEADBEEF',
+            'int8_t': '0xDE',
+            'uint8_t': '0xDEU',
+            'int16_t': '0xDEAD',
+            'uint16_t': '0xDEADU',
+            'int32_t': '0xDEADBEEF',
+            'uint32_t': '0xDEADBEEFU',
+            'int64_t': '0xDEADBEEFDEADBEEF',
+            'uint64_t': '0xDEADBEEFDEADBEEFULL',
+
+            'struct': '{}',
+
+            'array': 'array[31000]',
+}
+
+    def visit_default(self, node):
+        pass
+
+    def exit_default(self, node):
+        pass
+
+    def get_node_visitor(self, node):
+        visitors = {
+            "function_definition": self.visit_function_definition,
+            "expression_statement": self.visit_expression_statement,
+            "call_expression": self.visit_call_expression,
+            "goto_statement": self.visit_goto_statement,
+            "labeled_statement": self.visit_labeled_statement,
+            "declaration": self.visit_declaration,
+            "if_statement": self.visit_if_statement,
+            "for_statement": self.visit_for_statement,
+            "struct_specifier": self.visit_struct_specifier,
+            "identifier": self.visit_identifier,
+        }
+        if self.mode in ["replacement", "combination"]:
+            visitors.update({
+                "return_statement": self.visit_return_statement,
+            })
+        return visitors.get(node.type, self.visit_default)
+
+    def get_node_exit(self, node):
+        exit_funcs = {
+        }
+        return exit_funcs.get(node.type, self.exit_default)
+
+    def _add_to_removed_nodes(self, node):
+        if node is not None and node not in self.removed_nodes:
+            self.removed_nodes.append(node)
+
+    def _add_to_removed_declarations(self, declaration_name):
+        if declaration_name not in self.removed_declarations:
+            self.removed_declarations.append(declaration_name)
+
+    def _add_declaration_to_removed_declarations(self, declaration_node):
+        for declaration_child in declaration_node.children:
+            if declaration_child.type == "identifier":
+                decl_name = declaration_child.text.decode("utf-8")
+                self._add_to_removed_declarations(decl_name)
+            elif declaration_child.type in ["init_declarator", "array_declarator"]:
+                self._add_declaration_to_removed_declarations(declaration_child)
+
+    def _find_specific_parent_node(self, node, parent_node_type):
+        if node is None:
+            return
+        if node.type == parent_node_type:
+            return node
+        else:
+            return self._find_specific_parent_node(node.parent, parent_node_type)
+
+    def _has_parent_node(self, node, parent_node):
+        current = node.parent
+        while current is not None:
+            if current == parent_node:
+                return True
+            current = current.parent
+        return False
+
+    def _handle_function_definition_removal(self, child, node, node_type):
+        child_name = child.text.decode("utf-8")
+        if child_name not in self.removed_nodes_with_types:
+            self.removed_nodes_with_types[child_name] = node_type
+        if child_name in self.removed_declarations:
+            return self._add_to_removed_nodes(node)
+        for removal_node in self.functions_to_remove:
+            if (removal_node.name == child_name
+                and node not in self.removed_nodes):
+                if child_name == "main":
+                    # keep main function but remove code
+                    for main_child in node.children:
+                        if main_child.type == "compound_statement":
+                            for main_code in main_child.children:
+                                if main_code.type not in ["{", "}"]:
+                                    self._add_to_removed_nodes(main_code)
+                else:
+                    return self._add_to_removed_nodes(node)
+
+    def _get_node_type(self, child):
+        if child.type in ["primitive_type", "sized_type_specifier"]:
+            return child.text.decode("utf-8")
+        if child.type == "struct_specifier":
+            return "struct"
+        return None
+
+    def visit_function_definition(self, node):
+        node_type = None
+        for child in node.children:
+            if not node_type:
+                node_type = self._get_node_type(child)
+            if child.type == "function_declarator":
+                for child_child in child.children:
+                    if child_child.type == "identifier":
+                        return self._handle_function_definition_removal(child_child, node, node_type)
+                    elif child_child.type == "parenthesized_declarator":
+                        for child_child_child in child_child.children:
+                            if child_child_child.type == "identifier":
+                                return self._handle_function_definition_removal(child_child_child, node, node_type)
+
+    def _find_expression_statement_removal_parent_node(self, node):
+        removal_parent_node = self._find_specific_parent_node(node, "expression_statement")
+        if removal_parent_node:
+            return removal_parent_node
+
+        removal_parent_node = self._find_specific_parent_node(node, "declaration")
+        if removal_parent_node:
+            self._add_declaration_to_removed_declarations(removal_parent_node)
+            return removal_parent_node
+
+        for parent_type in ["if_statement", "for_statement"]:
+            removal_parent_node = self._find_specific_parent_node(node, parent_type)
+            if removal_parent_node:
+                return removal_parent_node
+
+        return None
+
+    def _handle_call_expression_argument_list(self, child, node, node_type):
+        for child_child in child.children:
+            if child_child.type == "identifier":
+                variable_name = child_child.text.decode("utf-8")
+                if variable_name in self.removed_declarations:
+                    if self.mode == "replacement":
+                        return self.replaced_assignment_declarations.append(
+                            (node, self.removed_nodes_with_types[variable_name], None)
+                        )
+                    else:
+                        removal_parent_node = self._find_expression_statement_removal_parent_node(node)
+                        return self._add_to_removed_nodes(removal_parent_node)
+
+    def _handle_call_expression_identifier(self, child, node, node_type):
+        call_name = child.text.decode("utf-8")
+        for removal_node in self.functions_to_remove:
+            if removal_node.name == call_name:
+                if self.mode == "replacement":
+                    return self.replaced_assignment_declarations.append(
+                        (node, {"function": call_name}, None)
+                    )
+                removal_parent_node = self._find_expression_statement_removal_parent_node(node)
+                return self._add_to_removed_nodes(removal_parent_node)
+
+    def visit_call_expression(self, node):
+        # call_expression uses variable from removed declaration in argument list
+        for child in node.children:
+            if child.type == "argument_list":
+                self._handle_call_expression_argument_list(child, node, None)
+            # call_expression uses removed function
+            if child.type == "identifier":
+                self._handle_call_expression_identifier(child, node, None)
+
+
+    def _handle_expression_statement_identifier(self, child, node, node_type):
+        child_name = child.text.decode("utf-8")
+        if child_name not in self.removed_nodes_with_types:
+            self.removed_nodes_with_types[child_name] = node_type
+        if (
+            child_name in self.removed_declarations
+            and node not in self.removed_nodes
+        ):
+            if self.mode == "replacement":
+                return self.replaced_assignment_declarations.append(
+                    (node, self.removed_nodes_with_types[child_name], ";")
+                )
+            else:
+                return self._add_to_removed_nodes(node)
+        for removal_node in self.functions_to_remove:
+            if (
+                removal_node.name == child_name
+                and node not in self.removed_nodes
+            ):
+                if self.mode == "replacement":
+                    return self.replaced_assignment_declarations.append(
+                        (node, self.removed_nodes_with_types[child_name], ";")
+                    )
+                else:
+                    return self._add_to_removed_nodes(node)
+
+    def visit_expression_statement(self, node):
+        for child in node.children:
+            if child.type in ["call_expression", "assignment_expression", "update_expression"]:
+                for child_child in child.children:
+                    if child_child.type == "identifier":
+                        self._handle_expression_statement_identifier(child_child, node, None)
+                    elif child_child.type in ["field_expression", "subscript_expression"]:
+                        for child_child_child in child_child.children:
+                            if child_child_child.type == "identifier":
+                                self._handle_expression_statement_identifier(child_child_child, node, None)
+
+    def visit_goto_statement(self, node):
+        if node not in self.goto_statements:
+            self.goto_statements.append(node)
+
+    def _handle_go_to_labeled_statement(self, node):
+        if node.parent is None:
+            return self._add_to_removed_nodes(node)
+        if len(node.parent.children) <= 3:
+            self._add_to_removed_nodes(node.parent)
+        else:
+            self._add_to_removed_nodes(node)
+
+    def visit_labeled_statement(self, node):
+        for removal_node in self.removed_nodes:
+            if not self._has_parent_node(node, removal_node):
+                continue
+            for child in node.children:
+                if child.type != "statement_identifier":
+                    continue
+                child_name = child.text.decode("utf-8")
+                if child_name in self.removed_nodes:
+                    continue
+                for goto_statement in self.goto_statements:
+                    for goto_child in goto_statement.children:
+                        goto_child_name = goto_child.text.decode("utf-8")
+                        if goto_child.type == "statement_identifier":
+                            if child_name == goto_child_name:
+                                self._handle_go_to_labeled_statement(
+                                    goto_statement
+                                )
+                return
+
+    def _add_declaration_to_removal_nodes(self, node, child_name, node_type):
+        for removal_node in self.global_variables_to_remove:
+            if removal_node.name == child_name:
+                self._add_to_removed_nodes(node)
+                self._add_to_removed_declarations(child_name)
+                if child_name not in self.removed_nodes_with_types:
+                    self.removed_nodes_with_types[child_name] = node_type
+                removal_parent_node = self._find_specific_parent_node(node, "if_statement")
+                if not removal_parent_node:
+                    removal_parent_node = self._find_specific_parent_node(node, "for_statement")
+                self._add_to_removed_nodes(removal_parent_node)
+                return
+
+    def _handle_declaration_init_declarator(self, child, node, node_type):
+        for i, child_child in enumerate(child.children):
+            if child_child.type == "=":
+                previous_node_child = child_child
+            if child_child.type == "identifier":
+                child_name = child_child.text.decode("utf-8")
+                if i < 2:
+                    self._add_declaration_to_removal_nodes(node, child_name, node_type)
+                elif self.mode == "replacement" and child_name in self.removed_declarations:
+                    self.replaced_assignment_declarations.append(
+                        (node, node_type, previous_node_child)
+                    )
+            if child_child.type == "array_declarator":
+                return self._handle_declaration_init_declarator(child_child, node, node_type)
+
+    def _handle_declaration_array_declarator(self, child, node, node_type):
+        for child_child in child.children:
+            if child_child.type == "identifier":
+                child_name = child_child.text.decode("utf-8")
+                self._add_declaration_to_removal_nodes(node, child_name, node_type)
+
+    def _handle_declaration_function_declarator(self, child, node, node_type):
+        for child_child in child.children:
+            if child_child.type == "identifier":
+                child_name = child_child.text.decode("utf-8")
+                for removal_node in self.functions_to_remove:
+                    if removal_node.name == child_name:
+                        self._add_to_removed_nodes(node)
+
+    def _handle_declaration_identifier(self, child, node, node_type):
+        child_name = child.text.decode("utf-8")
+        self._add_declaration_to_removal_nodes(node, child_name, node_type)
+
+    def visit_declaration(self, node):
+        node_type = None
+        for child in node.children:
+            if not node_type:
+                node_type = self._get_node_type(child)
+            if child.type == "identifier":
+                return self._handle_declaration_identifier(child, node, node_type)
+            elif child.type == "init_declarator":
+                return self._handle_declaration_init_declarator(child, node, node_type)
+            elif child.type == "array_declarator":
+                return self._handle_declaration_array_declarator(child, node, node_type)
+            elif child.type == "function_declarator":
+                return self._handle_declaration_function_declarator(child, node, node_type)
+
+    def visit_if_statement(self, node):
+        for removal_node in self.if_statements_to_remove:
+            _, line_num = removal_node.name.split("_")
+            if str(node.start_point[0]) == line_num:
+                return self._add_to_removed_nodes(node)
+        for child in node.children:
+            if child.type == "parenthesized_expression":
+                for child_child in child.children:
+                    if child_child.type == "identifier":
+                        if child_child.text.decode("utf-8") in self.removed_declarations:
+                            return self._add_to_removed_nodes(node)
+
+    def visit_for_statement(self, node):
+        for removal_node in self.for_statements_to_remove:
+            _, line_num = removal_node.name.split("_")
+            if str(node.start_point[0]) == line_num:
+                return self._add_to_removed_nodes(node)
+        for child in node.children:
+            if child.type in ["call_expression", "assignment_expression", "update_expression"]:
+                for child_child in child.children:
+                    if child_child.type == "identifier":
+                        if child_child.text.decode("utf-8") in self.removed_declarations:
+                            self._add_to_removed_nodes(node)
+                        return
+
+    def visit_return_statement(self, node):
+        for i, child in enumerate(node.children):
+            if child.type == "return":
+                previous_node_child = child
+            if child.type == "identifier":
+                child_name = child.text.decode("utf-8")
+                if child_name in self.removed_declarations:
+                    self.replaced_assignment_declarations.append(
+                        (node, self.removed_nodes_with_types[child_name], previous_node_child)
+                    )
+
+    def visit_identifier(self, node):
+        node_text = node.text.decode("utf-8")
+        if node_text in self.removed_declarations:
+            parent_node = self._find_specific_parent_node(node, "if_statement")
+            if parent_node is not None:
+                if self._find_specific_parent_node(node, "compound_statement") is None:
+                    return self._add_to_removed_nodes(parent_node)
+            parent_node = self._find_specific_parent_node(node, "for_statement")
+            if parent_node is not None:
+                if self._find_specific_parent_node(node, "compound_statement") is None:
+                    return self._add_to_removed_nodes(parent_node)
+        if self.mode == "removal":
+            return
+
+        if node_text in self.removed_declarations:
+            if node_text in self.removed_nodes_with_types:
+                for replaced_node, _, _ in self.replaced_assignment_declarations:
+                    if self._has_parent_node(node, replaced_node):
+                        return
+                self.replaced_assignment_declarations.append(
+                    (node, self.removed_nodes_with_types[node.text.decode("utf-8")], None)
+                )
+
+    def _handle_struct_declaration(self, child, node, node_type):
+        if node_type == "parameter_declaration":
+            return
+        declaration_removal_types = [
+            "init_declarator", "pointer_declarator", "array_declarator"
+        ]
+        for child in node.children:
+            if child.type == "identifier":
+                self._add_to_removed_declarations(child.text.decode("utf-8"))
+                if self.mode == "replacement":
+                    return
+                else:
+                    return self._add_to_removed_nodes(node)
+            if child.type in declaration_removal_types:
+                for child_child in child.children:
+                    if child_child.type == "identifier":
+                        self._add_to_removed_declarations(child_child.text.decode("utf-8"))
+                        if self.mode != "replacement":
+                            return self._add_to_removed_nodes(node)
+                    if child_child.type == "array_declarator":
+                        for child_child_child in child_child.children:
+                            if child_child_child.type == "identifier":
+                                self._add_to_removed_declarations(child_child_child.text.decode("utf-8"))
+                                if self.mode != "replacement":
+                                    return self._add_to_removed_nodes(node)
+                                break
+                    if child_child.type == "=":
+                        previous_node_child = child_child
+                        return self.replaced_assignment_declarations.append(
+                            (node, "struct", previous_node_child)
+                        )
+
+    def visit_struct_specifier(self, node):
+        for child in node.children:
+            if child.type == "type_identifier":
+                struct_name = child.text.decode("utf-8")
+                removal_struct = False
+                for removal_node in self.structs_to_remove:
+                    if removal_node.name == struct_name:
+                        if len(node.children) < 3:
+                            node_type = node.parent.type
+                            return self._handle_struct_declaration(node, node.parent, node_type)
+                        removal_struct = True
+                if not removal_struct:
+                    return
+            if child.type == "field_declaration_list":
+                for struct_fields in child.children:
+                    for struct_field in struct_fields.children:
+                        if struct_field.type not in ["{", "}"]:
+                            self._add_to_removed_nodes(struct_field)
+
+    def replace_assignment_declarations(self, edits):
+        for node, node_type, previous_node_child in self.replaced_assignment_declarations:
+            if isinstance(node_type, dict):
+                node_type = self.removed_nodes_with_types[node_type["function"]]
+            overlapping_removal = False
+            for removal_node in self.removed_nodes:
+                if self._has_parent_node(node, removal_node):
+                    overlapping_removal = True
                     break
 
-    def get_base_name(self, name):
-        # Regular expression to match 'bla[...]'
-        match = re.match(r'([a-zA-Z_]\w*)\[\d*\]', name)
-        if match:
-            return match.group(1)
-        return name
-
-    def enterFunctionDefinition(self, ctx):
-        # Extract function name from declarator context
-        function_name = ctx.declarator().directDeclarator().getText()
-#        print(function_name)
-        fun2 = function_name.split('(', 1)[0]
-#        print(fun2)
-        if any((node.name == fun2 and node.node_type == "function")
-               for node in self.nodes_to_remove):
-            print("BIKAME STO FUNCTION")
-            self.removals.append((ctx.start.start, ctx.stop.stop))
-
-    def enterDeclaration(self, ctx: CParser.DeclarationContext):
-    # Check if the declaration is a typedef
-        is_typedef = False
-        typedef_name = None
-
-    # Check for typedef and process specifiers
-        for specifier in ctx.declarationSpecifiers().declarationSpecifier():
-            specifier_text = specifier.getText()
-            print(f"Specifier: {specifier_text}")
-            if specifier_text == 'typedef':
-                print("BIKAME STIN TYPEDEFFFFFFFFFFFFFFFFFF")
-                is_typedef = True
-                print(is_typedef)
-            if any((node.name == specifier_text and node.node_type == "var") for node in self.nodes_to_remove):
-                is_typedef = True
-
-        print(f"Context: {ctx.getText()}")
-        print(f"DeclarationSpecifiers: {ctx.declarationSpecifiers().getText()}")
-        print(f"InitDeclaratorList: {ctx.initDeclaratorList()}")
-
-        init_declarator_list = ctx.initDeclaratorList()
-
-        if not init_declarator_list and is_typedef:
-            print("No InitDeclaratorList found, handling typedef without initDeclaratorList.")
-            print(ctx.getText())
-            self.removals.append((ctx.start.start, ctx.stop.stop + 1))
-            # Handle typedef without initDeclaratorList (e.g., typedef struct { ... } Person;)
-            # Extract the last identifier in the declaration specifiers as the typedef name
-        
-        if not init_declarator_list:
-            print("No InitDeclaratorList found, returning.")
-            return
-        print(is_typedef)
-        
-        if is_typedef:
-        # Handle typedefs
-            print("EXOUME TYPEDEF")
-            for init_declarator in init_declarator_list.initDeclarator():
-                declarator = init_declarator.declarator()
-                if declarator:
-                    typedef_name = declarator.getText()
-                    print(f"Typedef name: {typedef_name}")
-                    if any((node.name == typedef_name and node.node_type == "typedef") for node in self.nodes_to_remove):
-                        print(f"Removing typedef: {typedef_name}")
-                        self.removals.append((ctx.start.start, ctx.stop.stop + 1))
-        else:
-        # Handle variables, excluding function arguments
-            for init_declarator in init_declarator_list.initDeclarator():
-                declarator = init_declarator.declarator()
-                if declarator:
-                    var_name = declarator.getText()
-
-                # Check if the variable is a function argument
-                if any((node.name == self.get_base_name(var_name) and node.node_type == "var") for node in self.nodes_to_remove):
-                    print(f"Removing variable: {var_name}")
-                    self.removals.append((ctx.start.start, ctx.stop.stop + 1))
-
-    def enterStructOrUnionSpecifier(self, ctx):
-        if ctx.Identifier():
-            struct_name = ctx.Identifier().getText()
-            if any((node.name == struct_name and node.node_type == "struct")
-               for node in self.nodes_to_remove):
-                self.removals.append((ctx.start.start, ctx.stop.stop+1))
-
-    def enterExpressionStatement(
-            self, ctx: CParser.ExpressionStatementContext):
-#        print(f"BIKAME SE EXPRESSSSSSSSSSSION",ctx.getText())
-#        expr = ctx.getText()
-#        if any((node.name in expr and node.node_type == "var")
-#               for node in self.nodes_to_remove):
-#                self.removals.append((ctx.start.start, ctx.stop.stop+1))
-        print("EXPRESSIONS")
-        self.remove_use_site(ctx)
-    
-#    def enterAssignmentExpression(self, ctx: CParser.AssignmentExpressionContext):
-##        self.remove_use_site(ctx)
-#        assignment = ctx.getText()
-#        print(f"EIMASTE SE ASSIGMENT:", assignment)
-
-#        # Get the base name of the assignment
-##        assignment_base_name = self.get_base_name(assignment)
-#        
-#        # Check if the base name of the assignment matches any node to be removed
-#        if any(self.get_base_name(node.name) in assignment and node.node_type == "var"
-#               for node in self.nodes_to_remove):
-#            print(f"THA KANOUME REMOVE TO ASSIGMENT", assignment)
-#            self.removals.append((ctx.start.start, ctx.stop.stop))
-
-    def remove_nodes(self, source_code, nodes_to_remove: set, removed_nodes: set):
-        self.nodes_to_remove = nodes_to_remove
-        print(f"EIMASTE STIN REMOVE NODES:",nodes_to_remove)
-        self.removed_nodes = removed_nodes.union(nodes_to_remove)
-        walker = ParseTreeWalker()
-        walker.walk(self, self.tree)
-        for start, stop in sorted(self.removals, reverse=True):
-            print("BIKAME RE NA KANOUME TA REMOVALS")
-            code_block = source_code[start:stop + 1]
-            if any(node.name in code_block for node in self.nodes_to_remove):
-                source_code = source_code[:start] + \
-                    (len(code_block) * " ") + source_code[stop + 1:]
-#            print(source_code)
-        source_code = source_code.replace(r"/\s\s+/g", ' ')
-        modified_source_code = re.sub(r'\n\s*\n', '\n\n', source_code)
-#        print(modified_source_code)
-        return modified_source_code
-
-    @classmethod
-    def setup_parse_tree(self, source_code: str):
-        lexer = CLexer(InputStream(source_code))
-        stream = CommonTokenStream(lexer)
-        parser = CParser(stream)
-        return parser.compilationUnit()
-
-
-class SolidityDeclarationRemoval(SolidityListener, ASTRemoval):
-    def __init__(self, tree, graph):
-        super().__init__(tree, graph)
-
-    def remove_use_site(self, ctx):
-        text = ctx.getText()
-        if any(node.name + "(" in text for node in self.nodes_to_remove):
-            equal_sign_index = text.find('=')
-            if equal_sign_index != -1:
-                start = ctx.start.start + equal_sign_index + 1
-                stop = ctx.stop.stop
-                if (stop < ctx.stop.stop
-                        and text[stop - ctx.start.start] == ';'):
-                    stop += 1
-                stop -= 1
-                self.removals.append((start, stop))
+            if overlapping_removal:
+                continue
+            if previous_node_child:
+                dummy_value = f" {self.dummy_values[node_type]};".encode("utf-8")
+                if previous_node_child == ";":
+                    new_end_byte = node.start_byte
+                    new_end_byte_with_dummy = node.start_byte + len(dummy_value)
+                    new_end_point = node.start_point
+                    new_end_point_with_dummy = (node.start_point[0],
+                                                node.start_point[1]
+                                                + len(dummy_value.decode("utf-8")))
+                else:
+                    new_end_byte = previous_node_child.end_byte
+                    new_end_byte_with_dummy = previous_node_child.end_byte + len(dummy_value)
+                    new_end_point = previous_node_child.end_point
+                    new_end_point_with_dummy = (node.end_point[0],
+                                                previous_node_child.end_point[1]
+                                                + len(dummy_value.decode("utf-8")))
             else:
-                self.removals.append((ctx.start.start, ctx.stop.stop))
-        elif any(node.name in text for node in self.nodes_to_remove):
-            self.removals.append((ctx.start.start, ctx.stop.stop))
+                # When the replaced declaration is an identifier
+                dummy_value = f"{self.dummy_values[node_type]}".encode("utf-8")
+                new_end_byte = node.start_byte
+                new_end_byte_with_dummy = node.start_byte + len(dummy_value)
+                new_end_point = node.start_point
+                new_end_point_with_dummy = (node.start_point[0],
+                                            node.start_point[1]
+                                            + len(dummy_value.decode("utf-8")))
+            edits.append({
+                "start_byte": node.start_byte,
+                "old_end_byte": node.end_byte,
+                "new_end_byte": new_end_byte,
+                "new_end_byte_with_dummy": new_end_byte_with_dummy,
+                "start_point": node.start_point,
+                "old_end_point": node.end_point,
+                "new_end_point": new_end_point,
+                "new_end_point_with_dummy": new_end_point_with_dummy,
+                "new_text": dummy_value
+            })
 
-    def enterFunctionDefinition(self,
-                                ctx: SolidityParser.FunctionDefinitionContext):
-        functions_name = ctx.getChild(0).getText()
-        function_name = functions_name.replace("function", "").strip()
-        if any((node.name == function_name and node.node_type == "function")
-               for node in self.nodes_to_remove):
-            self.removals.append((ctx.start.start, ctx.stop.stop))
 
-    def enterModifierInvocation(self,
-                                ctx: SolidityParser.ModifierInvocationContext):
-        modifier_name = ctx.getChild(0).getText()
-        if any((node.name == modifier_name and node.node_type == "function")
-               for node in self.nodes_to_remove):
-            self.removals.append((ctx.start.start, ctx.stop.stop))
+    def remove_nodes(self, nodes_to_remove: set, mode: str) -> str:
+        sorted_nodes: list[Any] = sorted([node for node in nodes_to_remove],
+                                          key=lambda x: x.name)
+        self.mode = mode
+        parser = parsers.get_parser(self.LANGUAGE)
+        tree = parser.parse(self.content.encode("utf-8"))
 
-    def enterModifierDefinition(self,
-                                ctx: SolidityParser.ModifierDefinitionContext):
-        self.removals.append((ctx.start.start, ctx.stop.stop))
+        self.functions_to_remove: list[Any] = [node for node in sorted_nodes if node.node_type == "function"]
+        self.global_variables_to_remove: list[Any] = [node for node in sorted_nodes if node.node_type == "global_variable"]
+        self.structs_to_remove: list[Any] = [node for node in sorted_nodes if node.node_type == "struct"]
+        self.if_statements_to_remove: list[Any] = [node for node in sorted_nodes if node.node_type == "if_statement"]
+        self.for_statements_to_remove: list[Any] = [node for node in sorted_nodes if node.node_type == "for_statement"]
 
-    def enterStructDefinition(self,
-                              ctx: SolidityParser.StructDefinitionContext):
-        struct_name = ctx.getChild(1).getText()
-        if any((node.name == struct_name and node.node_type == "struct")
-               for node in self.nodes_to_remove):
-            self.removals.append((ctx.start.start, ctx.stop.stop))
+        try:
+            self.traverse_node(tree.root_node)
+        except Exception as e:
+            print("Modification exception")
+            print(traceback.format_exc())
+            raise e
+        self.removed_nodes.sort(key=lambda node: node.end_byte, reverse=True)
 
-    def enterEventDefinition(self, ctx: SolidityParser.EventDefinitionContext):
-        event_name = ctx.getChild(1).getText()
-        if any((node.name == event_name and node.node_type == "event")
-               for node in self.nodes_to_remove):
-            self.removals.append((ctx.start.start, ctx.stop.stop))
+        edits = []
+        modified_code = tree.text
+        visited_nodes = [False] * len(self.removed_nodes)
+        for i, removed_node in enumerate(self.removed_nodes):
+            if visited_nodes[i]:
+                continue
+            visited_nodes[i] = True
 
-    def enterEmitStatement(self, ctx: SolidityParser.EmitStatementContext):
-        emit_name = ctx.getChild(1).getText()
-        if any((node.name == emit_name and node.node_type == "event")
-               for node in self.nodes_to_remove):
-            self.removals.append((ctx.start.start, ctx.stop.stop))
+            overlapping_nodes = [removed_node]
 
-    def enterStateVariableDeclaration(
-            self, ctx: SolidityParser.StateVariableDeclarationContext):
-        variable_name = None
-        for i in range(ctx.getChildCount()):
-            if isinstance(ctx.getChild(i), SolidityParser.IdentifierContext):
-                variable_name = ctx.getChild(i).getText()
-                break
+            for j in range(i + 1, len(self.removed_nodes)):
+                other_node = self.removed_nodes[j]
+                if (other_node.start_byte <= removed_node.end_byte and
+                    other_node.end_byte >= removed_node.start_byte):
+                    visited_nodes[j] = True
+                    overlapping_nodes.append(other_node)
+                elif other_node.start_byte > removed_node.end_byte:
+                    break
 
-        if variable_name:
-            if any((node.name == variable_name
-                    and node.node_type == "state_var")
-                   for node in self.nodes_to_remove):
-#                print(f"Marking state variable '{variable_name}' for removal.")
-                self.removals.append((ctx.start.start, ctx.stop.stop))
+            start_byte = min(node.start_byte for node in overlapping_nodes)
+            end_byte = max(node.end_byte for node in overlapping_nodes)
+            start_point = min(node.start_point for node in overlapping_nodes)
+            end_point = max(node.end_point for node in overlapping_nodes)
+            edits.append({
+                "start_byte": start_byte,
+                "old_end_byte": end_byte,
+                "new_end_byte": start_byte,
+                "start_point": start_point,
+                "old_end_point": end_point,
+                "new_end_point": start_point,
+            })
+        if mode in ["replacement", "combination"]:
+            self.replace_assignment_declarations(edits)
+            edits.sort(key=lambda edit: edit["start_byte"], reverse=True)
+        for edit in edits:
+            # Apply the edit to the tree
+            if "new_text" in edit and mode in ["replacement", "combination"]:
+                tree.edit(
+                    start_byte=edit["start_byte"],
+                    old_end_byte=edit["old_end_byte"],
+                    new_end_byte=edit["new_end_byte_with_dummy"],
+                    start_point=edit["start_point"],
+                    old_end_point=edit["old_end_point"],
+                    new_end_point=edit["new_end_point_with_dummy"],
+                )
+                # Update the source code
+                modified_code = (
+                    modified_code[: edit["start_byte"]] +
+                    modified_code[edit["start_byte"]:edit["new_end_byte"]] +
+                    edit["new_text"] +
+                    modified_code[edit["old_end_byte"]:]
+                )
+            else:
+                tree.edit(
+                    start_byte=edit["start_byte"],
+                    old_end_byte=edit["old_end_byte"],
+                    new_end_byte=edit["new_end_byte"],
+                    start_point=edit["start_point"],
+                    old_end_point=edit["old_end_point"],
+                    new_end_point=edit["new_end_point"],
+                )
+                # Update the source code
+                modified_code = (
+                    modified_code[: edit["start_byte"]] +
+                    modified_code[edit["start_byte"]:edit["new_end_byte"]] +
+                    modified_code[edit["old_end_byte"]:]
+                )
 
-    def enterSimpleStatement(self,
-                             ctx: SolidityParser.ExpressionStatementContext):
-        self.remove_use_site(ctx)
-
-    def enterReturnStatement(self, ctx: SolidityParser.ReturnStatementContext):
-        self.remove_use_site(ctx)
-
-    def enterExpressionStatement(
-            self, ctx: SolidityParser.ExpressionStatementContext):
-        self.remove_use_site(ctx)
-
-    def enterVariableDeclarationStatement(
-            self, ctx: SolidityParser.VariableDeclarationStatementContext):
-        self.remove_use_site(ctx)
-
-    def enterContractDefinition(self,
-                                ctx: SolidityParser.ContractDefinitionContext):
-        # Find the identifier in the children
-        identifier = None
-        for i in range(ctx.getChildCount()):
-            if isinstance(ctx.getChild(i), SolidityParser.IdentifierContext):
-                identifier = ctx.getChild(i).getText()
-                break
-
-        if identifier is None:
-            return
-
-        if any((node.name == identifier and node.node_type == "contract")
-               for node in self.nodes_to_remove):
-            self.removals.append((ctx.start.start, ctx.stop.stop))
-
-    def exitSourceUnit(self, ctx: SolidityParser.SourceUnitContext):
-        sorted_nodes = list(nx.topological_sort(self.graph))
-        for contract_node in [n for n in self.graph
-                              if n.node_type == "contract" and
-                              n not in self.nodes_to_remove]:
-            parents = [
-                p for p in list(nx.ancestors(self.graph, contract_node))
-                if p not in self.removed_nodes
-            ]
-            sorted_parents = []
-            if parents:
-                for n in sorted_nodes:
-                    if n not in parents:
-                        continue
-                    pred_nodes = set(nx.ancestors(self.graph, n))
-                    sorted_parents.append(n)
-                    for pred in pred_nodes:
-                        if pred in sorted_parents:
-                            sorted_parents.remove(pred)
-
-            new_inheritance_specifiers = ", ".join(
-                parent.name for parent in sorted_parents)
-            self.replacements.append((contract_node.name,
-                                      new_inheritance_specifiers))
-
-    def remove_nodes(self, source_code, nodes_to_remove: set,
-                     removed_nodes: set):
-        self.nodes_to_remove = nodes_to_remove
-        self.removed_nodes = removed_nodes.union(nodes_to_remove)
-        walker = ParseTreeWalker()
-        walker.walk(self, self.tree)
-        for start, stop in sorted(self.removals, reverse=True):
-            code_block = source_code[start:stop + 1]
-            if any(node.name in code_block for node in self.nodes_to_remove):
-                source_code = source_code[:start] + \
-                    (len(code_block) * " ") + source_code[stop + 1:]
-
-        for identifier, new_inheritance_specifiers in self.replacements:
-            pattern = re.compile(rf"(\b{identifier}\b\s+is\s+)[^{{]*")
-            replacement_text = (
-                f"{identifier} is {new_inheritance_specifiers}"
-                if new_inheritance_specifiers
-                else f"{identifier}"
-            )
-            source_code = pattern.sub(replacement_text, source_code)
-        source_code = source_code.replace(r"/\s\s+/g", ' ')
-        modified_source_code = re.sub(r'\n\s*\n', '\n\n', source_code)
-        return modified_source_code
-
-    @classmethod
-    def setup_parse_tree(self, source_code: str):
-        lexer = SolidityLexer(InputStream(source_code))
-        stream = CommonTokenStream(lexer)
-        parser = SolidityParser(stream)
-        return parser.sourceUnit()
+        parser = parsers.get_parser(self.LANGUAGE)
+        updated_tree = parser.parse(modified_code, tree)
+        return remove_empty_lines(updated_tree.text.decode("utf-8"))
 
 
 AST_REMOVALS = {
     "solidity": SolidityDeclarationRemoval,
-    "c": CDeclarationRemoval
+    "c": CDeclarationRemoval,
 }
+
+if __name__ == "__main__":
+    file_name = "./C/gcc-59903/small.c"
+    from reducer import utils
+    content = utils.read_file(file_name)
+    modifier = CDeclarationRemoval(content, nx.DiGraph())
+    updated_tree = modifier.remove_nodes(
+        # {DeclarationNode("func_129", "function", None)}
+        {DeclarationNode("g_3", "declaration", None)}, "combination"
+    )
+    with open("test_c_file.c", "w") as f:
+        f.write(updated_tree)
+    # print(updated_tree)

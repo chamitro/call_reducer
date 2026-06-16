@@ -1,19 +1,19 @@
 import argparse
 import time
-import resource, sys
-resource.setrlimit(resource.RLIMIT_STACK, (2**29,-1))
-sys.setrecursionlimit(10**6)
-
-import matplotlib.pyplot as plt
-import networkx as nx
+import resource
+import sys
 
 from reducer import utils
 from reducer.dd import Interesting, perform_dd
 from reducer.checker import PROPERTY_CHECKERS
 from reducer.graph import build_graph_from_file
 
-#example Solidity:greduce --script solidity2.sh
-#example C: greduce --source-file ./example.c --script ./cproperty.sh --language c
+resource.setrlimit(resource.RLIMIT_STACK, (2**29, -1))
+sys.setrecursionlimit(10**6)
+
+
+#example Solidity: greduce --source-file ./Solidity/smart2/ext_changed.sol --script ./Solidity/smart2/solidity2.sh
+#example C: greduce --source-file "./C/gcc-59903/small.c" --script "./C/gcc-59903/test_r.sh" --language c --mode "$mode"
 
 # Argument parsing
 parser = argparse.ArgumentParser(
@@ -34,11 +34,20 @@ parser.add_argument(
     default="ext_changed.sol",
     help="Source file to minimize",
 )
+
 parser.add_argument(
     '--script',
     type=str,
     help='script to run"',
     default="./solidity2.sh"
+)
+
+parser.add_argument(
+    "--mode",
+    default="combination",
+    choices=['removal', 'replacement', 'combination'],
+    help="Select whether the removal of variables should follow a removal, "
+         "replacement or a combination strategy"
 )
 args = parser.parse_args()
 
@@ -52,87 +61,40 @@ def main():
     print(f"Graph built from file: {file_path}")
     print(graph)
 
-#    def print_nodes_with_label(graph, label):
-#        nodes = [node for node in graph.nodes()
-#                 if node.node_type == label]
-#        print(f"Nodes with label '{label}':")
-#        print(nodes)
-#        print()
+    print(args.script)
+    print(file_path)
+    prop_checker = PROPERTY_CHECKERS[args.language](file_path, args.script)
+    content = utils.read_file(file_path)
 
-#    def print_edges_with_label(graph):
-#        edges = graph.edges(data=True)
-#        print("Edges with labels:")
-#        for edge in edges:
-#            source = edge[0]
-#            target = edge[1]
-#            label = edge[2]['label']
-#            print(f"({source}) -> ({target}): {label}")
-#        print()
+    interesting = Interesting(graph, content,
+                              prop_checker, args.language, args.mode)
 
-#    print_nodes_with_label(graph, 'function')
-#    print_nodes_with_label(graph, 'var')
-##    print_nodes_with_label(graph, 'typedef')
-#    print_nodes_with_label(graph, 'struct')
+    passes = [
+        ["function"],
+        ["contract"],
+        ["event", "state_var", "struct", "var"]
+    ]
+    parallel = True
 
-#    print_edges_with_label(graph)
+    if args.language == "c":
+        parallel = False
+        passes = [
+            ["for_statement", "if_statement"],
+            ["global_variable", "struct"],
+            ["function"],
+            ["for_statement", "if_statement"],
+        ]
 
-#    # Draw and display the graph
-#    plt.figure(figsize=(12, 8))
-#    pos = nx.spring_layout(graph, seed=42)  # Positions for all nodes
+    for pass_ in passes:
+        interesting.mode = pass_
+        perform_dd(interesting, lambda n: n.node_type in pass_,
+                   parallel=parallel, language=args.language)
 
-#    # Nodes
-#    node_labels = {node: node for node in graph.nodes()}
-#    node_colors = {'function': 'lightgreen', 'var': 'yellow', 'struct':'red'}
-#    node_shapes = {'function': 'o', 'var': 'o', 'struct': 'o'}
-
-#    for label in node_colors:
-#        nx.draw_networkx_nodes(graph, pos, nodelist=[node for node in graph.nodes() if node.node_type == label],
-#                               node_color=node_colors[label], node_shape=node_shapes[label], label=label, node_size=500)
-
-#    # Edges
-#    nx.draw_networkx_edges(graph, pos, edgelist=graph.edges(), arrows=True)
-
-#    # Labels
-#    nx.draw_networkx_labels(graph, pos, labels=node_labels, font_size=8, font_color='black')
-
-#    # Edge labels
-#    edge_labels = {(edge[0], edge[1]): edge[2]['label'] for edge in graph.edges(data=True)}
-#    nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_color='red', font_size=4)
-
-#    plt.title('C Dependency Graph')
-#    plt.legend()
-#    plt.axis('off')
-#    plt.show()
-#    print(args.script)
-#    print(file_path)
-#    prop_checker = PROPERTY_CHECKERS[args.language](file_path, args.script)
-#    original_content = utils.read_file(file_path)
-
-#    interesting = Interesting(graph, original_content,
-#                              prop_checker, args.language)
-#    passes = [
-#        ["function"], ["contract"],
-#        ["event", "state_var", "struct", "var"]
-#    ]
-#    for pass_ in passes:
-#        interesting.mode = pass_
-#        perform_dd(interesting, lambda n: n.node_type in pass_,
-#                   parallel=True)
-#    passes = [
-#        ["function"],
-#        ["struct", "var"]
-#    ]
-#    for pass_ in passes:
-#        interesting.mode = pass_
-#        perform_dd(interesting, lambda n: n.node_type in pass_,
-#                   parallel=True)
 
     end_time = time.time()
-    # Calculate the elapsed time
     elapsed_time = end_time - start_time
     print(f"Execution time: {elapsed_time} seconds")
 
 
 if __name__ == "__main__":
     main()
-

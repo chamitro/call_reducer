@@ -133,3 +133,10 @@ dmypy.json
 # Gradle-specifc
 build/
 .gradle/
+
+# Ignore perses result directories
+**/perses_result/
+**/perses_result_*/
+
+# Ignore backup files with timestamp pattern
+**/*.orig

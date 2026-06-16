@@ -7,7 +7,7 @@ import os
 LIBRARY_PATH = "./tree-sitter-languages.so"
 
 # Path to the C grammar repository
-#C_GRAMMAR_REPO = "https://github.com/tree-sitter/tree-sitter-c.git"
+C_GRAMMAR_REPO = "https://github.com/tree-sitter/tree-sitter-c.git"
 C_LANGUAGE_DIR = "./tree-sitter-c"
 
 if not os.path.exists(LIBRARY_PATH):
