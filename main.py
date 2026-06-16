@@ -5,7 +5,7 @@ import sys
 
 from reducer import utils
 from reducer.dd import Interesting, perform_dd
-from reducer.checker import PROPERTY_CHECKERS
+from reducer.checker import PROPERTY_CHECKERS, JavaPropertyChecker
 from reducer.graph import build_graph_from_file
 
 resource.setrlimit(resource.RLIMIT_STACK, (2**29, -1))
@@ -14,6 +14,7 @@ sys.setrecursionlimit(10**6)
 
 #example Solidity: greduce --source-file ./Solidity/smart2/ext_changed.sol --script ./Solidity/smart2/solidity2.sh
 #example C: greduce --source-file "./C/gcc-59903/small.c" --script "./C/gcc-59903/test_r.sh" --language c --mode "$mode"
+#example Java: greduce --source-file "./Java/generator_modified/iter_1/Main.java" --script "./Java/generator_modified/iter_1/run.sh" --language java --mode "$mode"
 
 # Argument parsing
 parser = argparse.ArgumentParser(
@@ -24,8 +25,8 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     "--language",
     default="solidity",
-    choices=['solidity', 'c'],
-    help="Select specific language (options: 'solidity', 'c')"
+    choices=['solidity', 'c', 'java'],
+    help="Select specific language (options: 'solidity', 'c', 'java')"
 )
 
 parser.add_argument(
@@ -45,7 +46,7 @@ parser.add_argument(
 parser.add_argument(
     "--mode",
     default="combination",
-    choices=['removal', 'replacement', 'combination'],
+    choices=['removal', 'replacement', 'combination', 'break'],
     help="Select whether the removal of variables should follow a removal, "
          "replacement or a combination strategy"
 )
@@ -84,12 +85,122 @@ def main():
             ["function"],
             ["for_statement", "if_statement"],
         ]
+        if args.mode not in ["removal", "replacement", "combination"]:
+            raise ValueError(
+                f"Unknown mode: {args.mode}. Must be 'removal', 'replacement', "
+                f"or 'combination'."
+            )
+    elif args.language == "java":
+        passes = ["class"]
+        interesting.removal_mode = "break"
+    else:
+        if args.mode not in ["removal"]:
+            raise ValueError(f"Unknown mode: {args.mode}. Must be 'removal'")
 
     for pass_ in passes:
+        if args.language == "java":
+            graph = build_graph_from_file(file_path, args.language)
+            interesting.graph = graph
+
         interesting.mode = pass_
         perform_dd(interesting, lambda n: n.node_type in pass_,
                    parallel=parallel, language=args.language)
 
+    if args.language == "java":
+        graph = build_graph_from_file(file_path, args.language)
+        interesting.graph = graph
+
+        fixed_point_reached = False
+        if args.mode == "combination":
+            passes = [["function"], ["field"], ["local_variable"]]
+            interesting.removal_mode = "replacement"
+
+            counter = 0
+
+            while not fixed_point_reached:
+                old = utils.read_file(file_path)
+                for pass_ in passes:
+                    graph = build_graph_from_file(file_path, args.language)
+
+                    interesting.graph = graph
+                    interesting.mode = pass_
+                    perform_dd(interesting, lambda n: n.node_type in pass_, parallel=True)
+
+                new = utils.read_file(file_path)
+                fixed_point_reached = (old == new)
+                counter += 1
+            passes = [
+                ["local_variable"],
+                ["function"],
+                ["constructor"],
+                ["field"],
+                ["class"],
+                ["local_variable", "function", "field"]
+
+            ]
+            fixed_point_reached = False
+            remove_iteration_counter = 0
+
+            while not fixed_point_reached:
+                remove_iteration_counter += 1
+                old_content = utils.read_file(file_path)
+                for pass_ in passes:
+                    graph = build_graph_from_file(file_path, args.language)
+                    prop_checker = JavaPropertyChecker(file_path, args.script)
+                    content = utils.read_file(file_path)
+                    interesting = Interesting(graph, content,
+                                              prop_checker,
+                                              args.language, "removal")
+                    interesting.mode = pass_
+                    perform_dd(interesting, lambda n: n.node_type in pass_,
+                               parallel=False)
+
+                new_content = utils.read_file(file_path)
+                if old_content == new_content:
+                    fixed_point_reached = True
+        elif args.mode == "removal":
+            passes = [
+                ["local_variable"],
+                ["function"],
+                ["constructor"],
+                ["field"],
+                ["class"],
+            ]
+            fixed_point_reached = False
+            interesting.removal_mode = "removal"
+            remove_iteration_counter = 0
+
+            while not fixed_point_reached:
+                remove_iteration_counter += 1
+                old_content = utils.read_file(file_path)
+                for pass_ in passes:
+                    graph = build_graph_from_file(file_path, args.language)
+                    prop_checker = JavaPropertyChecker(file_path, args.script)
+                    content = utils.read_file(file_path)
+                    interesting = Interesting(graph, content,
+                                              prop_checker, args.language, "removal")
+                    interesting.mode = pass_
+                    perform_dd(interesting, lambda n: n.node_type in pass_,
+                               parallel=False)
+                new_content = utils.read_file(file_path)
+                if old_content == new_content:
+                    fixed_point_reached = True
+        elif args.mode == "replacement":
+            passes = [["function"], ["field"], ["local_variable"]]
+            interesting.removal_mode = "replacement"
+
+            counter = 0
+
+            while not fixed_point_reached:
+                old = utils.read_file(file_path)
+                for pass_ in passes:
+                    graph = build_graph_from_file(file_path, args.language)
+                    interesting.graph = graph
+                    interesting.mode = pass_
+                    perform_dd(interesting, lambda n: n.node_type in pass_, parallel=True)
+                new = utils.read_file(file_path)
+                fixed_point_reached = (old == new)
+                counter += 1
 
     end_time = time.time()
     elapsed_time = end_time - start_time

@@ -19,7 +19,7 @@ Install it in editable mode
 pip install --editable .
 ```
 
-## Solidity Setup
+## Solidity Setup`
 
 GReduce uses the Solidity compiler, and you can install multiple versions of it using solc-select. Follow these steps to install it:
 
@@ -47,11 +47,11 @@ Once installed, you can run Slither on a Solidity file, such as:
 slither Solidity/smart2/ext_changed.sol
 ```
 
-### GReduce Usage
+### Solidity Usage
 
-GReduce supports the following arguments:
+GReduce supports the following arguments for solidity:
 
-	- `--language`: Specify the programming language. Options: `solidity` or `c.``(Default: `"solidity"`)
+	- `--language`: Specify the programming language. Options: `solidity`, `java` or `c.``(Default: `"solidity"`)
 	- `--source-file`: The source file to minimize. (Default: `"ext_changed.sol"`)
 	- `--script`: The script to run during the reduction process. (Default: `"./solidity2.sh"`)
 
@@ -110,12 +110,12 @@ If your script uses CompCert make sure to install the needed version.
 
 ### C Usage
 
-GReduce supports the following arguments:
+GReduce supports the following arguments for C:
 
-	- `--language`: Specify the programming language. Options: `solidity` or `c.``(Default: `"solidity"`)
+	- `--language`: Specify the programming language. Options: `solidity`, `java` or `c.``(Default: `"solidity"`)
 	- `--source-file`: The source file to minimize. (Default: `"ext_changed.sol"`)
 	- `--script`: The script to run during the reduction process. (Default: `"./solidity2.sh"`)
-	- `--mode`: Only available for C. The strategy to be followed by the reduction. Only accepts the values 'removal', 'replacement' and 'combination'
+	- `--mode`: Only available for Java and C. The strategy to be followed by the reduction. Only accepts the values 'removal', 'replacement' and 'combination'
 
 ### Example Usage
 
@@ -185,3 +185,41 @@ To run all benchmarks for C, execute:
 ```
 
 In the root directory a CSV file containing the results will be created.
+
+## Java Setup
+
+Before using the tool on Java programs, run the initial setup script first.
+
+```
+./java_evaluation_utils/setup.sh
+```
+
+### Java Usage
+
+GReduce supports the following arguments:
+
+	- `--language`: Specify the programming language. Options: `solidity`, `java` or `c.``(Default: `"solidity"`)
+	- `--source-file`: The source file to minimize. (Default: `"ext_changed.sol"`)
+	- `--script`: The script to run during the reduction process. (Default: `"./solidity2.sh"`)
+	- `--mode`: Only available for Java and C. The strategy to be followed by the reduction. Only accepts the values 'removal', 'replacement' and 'combination'
+
+### Example Usage
+
+To reduce a Java program (e.g., `Java/generator_modified/iter_1/Main.java`) using the script `Java/generator_modified/iter_1/run.sh`, follow these steps:
+
+```
+# Run GReduce on the source file
+
+greduce --source-file ./Java/generator_modified/iter_1/Main.java --script ./Java/generator_modified/iter_1/run.sh --language java --mode removal
+```
+
+### Running Java Benchmarks
+
+To run all benchmarks for Java, execute:
+
+```
+python run_java_benchmarks.py
+```
+
+A new directory with the name `java_evaluation_results_<timestamp>` will appear
+containing the reduction results on the files found in `./Java`

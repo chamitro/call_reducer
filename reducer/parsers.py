@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from tree_sitter import Language, Parser  # type: ignore
+from tree_sitter_java import language as java_language  # type: ignore
 
 from reducer import utils
 
@@ -12,10 +13,15 @@ C_LANGUAGE = Language("libs/tree-sitter-languages.so", "c")
 C_PARSER = Parser()
 C_PARSER.set_language(C_LANGUAGE)
 
+JAVA_LANGUAGE = Language("libs/java.so", "java")
+JAVA_PARSER = Parser()
+JAVA_PARSER.set_language(JAVA_LANGUAGE)
+
 
 PARSERS = {
     "solidity": SOLIDITY_PARSER,
     "c": C_PARSER,
+    "java": JAVA_PARSER,
 }
 
 

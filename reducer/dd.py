@@ -61,12 +61,18 @@ class Interesting():
         nodes_to_remove = set(nodes_to_remove).union(self.removed_nodes)
         ast_removal = AST_REMOVALS[self.language](self.content,
                                                   self.graph)
-        modified_content = ast_removal.remove_nodes(nodes_to_remove, mode)
+        if mode == "break":
+            nodes_to_remove = set(filter(lambda n: n.node_type == "class", nodes_to_remove))
+            modified_content = ast_removal.break_inheritance(nodes_to_remove)
+        else:
+            modified_content = ast_removal.remove_nodes(nodes_to_remove, mode)
         name = ''.join(random.sample(string.ascii_letters + string.digits, 5))
         if (self.language == 'solidity'):
             temp_file_path = f"{name}.sol"
         elif (self.language == 'c'):
             temp_file_path = f"{name}.c"
+        elif (self.language == 'java'):
+            temp_file_path = f"{name}.java"
         with open(temp_file_path, 'w') as temp_file:
             temp_file.write(modified_content)
         output = self.prop_checker.run_test_script(temp_file_path)
@@ -140,7 +146,7 @@ def perform_dd(
         dd_star=True,
         config_iterator=picire.iterator.CombinedIterator(
             False, picire.iterator.skip,
-            picire.iterator.random if language == 'solidity' else picire.iterator.backward
+            picire.iterator.random if language != 'c' else picire.iterator.backward
         )
     )
     try:
