@@ -44,7 +44,7 @@ sudo python3 -m pip install slither-analyzer
 Once installed, you can run Slither on a Solidity file, such as:
 
 ```
-slither Solidity/smart2/ext_changed.sol
+slither Solidity/smart2/original.sol
 ```
 
 ### Solidity Usage
@@ -52,40 +52,63 @@ slither Solidity/smart2/ext_changed.sol
 GReduce supports the following arguments for solidity:
 
 	- `--language`: Specify the programming language. Options: `solidity`, `java` or `c.``(Default: `"solidity"`)
-	- `--source-file`: The source file to minimize. (Default: `"ext_changed.sol"`)
-	- `--script`: The script to run during the reduction process. (Default: `"./solidity2.sh"`)
+	- `--source-file`: The source file to minimize.
+	- `--script`: The script to run during the reduction process.
+
+Each benchmark under `Solidity/smart*/` contains exactly three files:
+
+	- `original.sol`: the original (unminimized) smart contract.
+	- `test.sh`: the property test script (runs Slither and checks the expected finding count).
+	- `version`: the Solidity compiler version to use with `solc-select`.
 
 ### Example Usage
 
-To reduce a Solidity smart contract (e.g., `ext_changed.sol`) using the script `solidity2.sh`, follow these steps:
+To reduce a Solidity smart contract (e.g., `Solidity/smart2`), follow these steps. GReduce
+minimizes its `--source-file` in place, so reduce a copy of `original.sol`:
 
 ```
-# Delete the comments in the smart contract source file
+# Select the required Solidity compiler version (see the benchmark's `version` file)
+solc-select use "$(cat Solidity/smart2/version)"
 
-python3 delete_comments.py --filepath  Solidity/smart2/ext_changed.sol
+# Work on a copy and (optionally) delete comments first
+cp Solidity/smart2/original.sol /tmp/program.sol
+python3 delete_comments.py --filepath /tmp/program.sol
 
-# Install the required version of the Solidity compilerInstall the required version of the Solidity compiler
-
-solc-select install 0.4.24
-solc-select use 0.4.24
-
-# Run GReduce on the source file
-
-greduce --source-file ./Solidity/smart2/ext_changed.sol --script ./Solidity/smart2/solidity2.sh
-
+# Run GReduce on the copy, using the benchmark's test script
+greduce --source-file /tmp/program.sol --script ./Solidity/smart2/test.sh
 ```
 
-Note: For each smart contract, ensure that Slither runs with the appropriate Solidity compiler version. The `solc-select` use version command is mandatory before running Slither.
+Note: For each smart contract, ensure that Slither runs with the appropriate Solidity compiler version. The `solc-select use <version>` command is mandatory before running Slither.
 
 ### Running Solidity Benchmarks
 
-To run all benchmarks for Solidity, execute:
+`run_solidity_benchmarks.sh` runs three reduction methods per benchmark and writes the
+minimized programs to an output directory (token counts / performance are measured separately):
 
 ```
-./run_solidity_benchmarks.sh
+# Run all benchmarks, writing results under ./output
+./run_solidity_benchmarks.sh -o output
+
+# Run a single benchmark
+./run_solidity_benchmarks.sh -o output -b smart2
+
+# Run only the Perses baseline, or only greduce (+ Perses on greduce's output)
+./run_solidity_benchmarks.sh -o output --only-perses
+./run_solidity_benchmarks.sh -o output --only-greduce
 ```
 
-In the folder `Solidity/smart*`, you will find the compiler version(`version`) and the property(`property`) for each smart contract.
+For each benchmark `<name>` it produces:
+
+```
+output/<name>/minimized_greduce.sol         # greduce on the original
+output/<name>/minimized_greduce_perses.sol  # Perses on greduce's output
+output/<name>/minimized_perses.sol          # baseline: Perses on the original
+output/<name>/time                          # one "method=seconds" line per method run
+```
+
+The workflow runs greduce on the original, then Perses on greduce's result
+(`greduce+perses`), and separately Perses on the original (`perses` baseline). The
+`greduce_perses` time is the sum of the greduce and Perses passes.
 
 ## C Setup
 
