@@ -64,6 +64,8 @@ class Interesting():
         if mode == "break":
             nodes_to_remove = set(filter(lambda n: n.node_type == "class", nodes_to_remove))
             modified_content = ast_removal.break_inheritance(nodes_to_remove)
+        elif mode == "flatten":
+            modified_content = ast_removal.flatten_inheritance(nodes_to_remove)
         else:
             modified_content = ast_removal.remove_nodes(nodes_to_remove, mode)
         name = ''.join(random.sample(string.ascii_letters + string.digits, 5))
@@ -137,6 +139,17 @@ def perform_dd(
 ):
     dd_cls = picire.ParallelDD if parallel else picire.DD
     nodes = [n for n in interesting.graph.nodes() if node_filter(n)]
+    if len(nodes) <= 1:
+        # ddmin needs >= 2 elements to subdivide, so a single-candidate pass
+        # would be returned untouched. Test removing the lone candidate directly.
+        output_nodes = list(nodes)
+        if nodes and interesting.remove_definitions(
+                set(), interesting.removal_mode) == picire.Outcome.FAIL:
+            output_nodes = []
+        interesting.update_graph(
+            [f for f in nodes if f not in output_nodes], remove_contracts=True)
+        interesting.reset_state()
+        return
     cache = picire.parallel_dd.SharedCache(
         picire.cache.ConfigCache(cache_fail=True))
     dd_obj = dd_cls(

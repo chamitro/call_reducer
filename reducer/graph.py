@@ -49,7 +49,12 @@ class GraphBuilder(parsers.TreeTraversal):
         tree = parsers.parse(source_file, self.LANGUAGE)
         root_node = tree.root_node
         self.traverse_node(root_node)
+        self.finalize_graph()
         return self.graph
+
+    def finalize_graph(self) -> None:
+        """Hook for post-traversal edge wiring (e.g. type-use dependencies)."""
+        pass
 
 
 class SolidityGraphBuilder(GraphBuilder):
@@ -61,6 +66,8 @@ class SolidityGraphBuilder(GraphBuilder):
         self.state_variable_counter = 0
         self.local_variable_counter = 0
         self.contracts: dict[str, DeclarationNode] = {}
+        # (declaration node, referenced user-type names) pending `uses-type` edges
+        self.pending_type_uses: list = []
 
     def visit_default(self, node):
         pass
@@ -69,7 +76,7 @@ class SolidityGraphBuilder(GraphBuilder):
         pass
 
     def visit_contract_declaration(self, node):
-        contract_name = node.children[1].text.decode("utf-8")
+        contract_name = parsers.declaration_name(node)
         contract_node = DeclarationNode(contract_name, "contract", None)
         self.graph.add_node(contract_node)
         self.push_declaration(contract_node)
@@ -87,9 +94,13 @@ class SolidityGraphBuilder(GraphBuilder):
         self.pop_declaration()
 
     def visit_function_definition(self, node):
-        func_name = node.children[1].text.decode("utf-8")
+        func_name = parsers.declaration_name(node)
+        signature = parsers.parameter_signature(node)
         parent_node = self.peek_declaration()
-        func_node = DeclarationNode(func_name, "function", parent_node)
+        # Identity = (name, "function", enclosing-contract, parameter signature),
+        # so same-named functions in different contracts (or overloads) are
+        # distinct, removable nodes.
+        func_node = DeclarationNode(func_name, "function", parent_node, signature)
         self.graph.add_node(func_node)
         self.push_declaration(func_node)
         self.current_function = func_node  # Set the current function context
@@ -100,27 +111,84 @@ class SolidityGraphBuilder(GraphBuilder):
         self.pop_declaration()
 
     def visit_event_definition(self, node):
-        event_name = node.text.decode("utf-8")
+        event_name = parsers.declaration_name(node)
         parent_node = self.peek_declaration()
         event_node = DeclarationNode(event_name, "event", parent_node)
         self.graph.add_node(event_node)
         if parent_node is not None:
             self.graph.add_edge(parent_node, event_node, label='def')
 
+    def visit_modifier_definition(self, node):
+        modifier_name = parsers.declaration_name(node)
+        parent_node = self.peek_declaration()
+        modifier_node = DeclarationNode(modifier_name, "modifier", parent_node)
+        self.graph.add_node(modifier_node)
+        if parent_node is not None:
+            self.graph.add_edge(parent_node, modifier_node, label='def')
+
+    def visit_struct_declaration(self, node):
+        struct_name = parsers.declaration_name(node)
+        parent_node = self.peek_declaration()
+        struct_node = DeclarationNode(struct_name, "struct", parent_node)
+        self.graph.add_node(struct_node)
+        self.push_declaration(struct_node)
+        if parent_node is not None:
+            self.graph.add_edge(parent_node, struct_node, label='def')
+
+    def exit_struct_declaration(self, node):
+        self.pop_declaration()
+
+    def visit_state_variable_declaration(self, node):
+        var_name = parsers.declaration_name(node)
+        parent_node = self.peek_declaration()
+        var_node = DeclarationNode(var_name, "state_var", parent_node)
+        self.graph.add_node(var_node)
+        if parent_node is not None:
+            self.graph.add_edge(parent_node, var_node, label='def')
+        self.pending_type_uses.append(
+            (var_node, parsers.type_reference_names(node)))
+
+    def visit_variable_declaration(self, node):
+        var_name = parsers.declaration_name(node)
+        parent_node = self.peek_declaration()
+        var_node = DeclarationNode(var_name, "var", parent_node)
+        self.graph.add_node(var_node)
+        if parent_node is not None:
+            self.graph.add_edge(parent_node, var_node, label='def')
+        self.pending_type_uses.append(
+            (var_node, parsers.type_reference_names(node)))
+
+    def finalize_graph(self) -> None:
+        """Add ``uses-type`` edges: struct/contract -> declaration typed by it,
+        so removing a type cascades (Interesting.update_graph + the remover's
+        type-use closure) to the state vars / locals that use it."""
+        type_nodes = {n.name: n for n in self.graph.nodes
+                      if n.node_type in ("contract", "struct")}
+        for var_node, type_names in self.pending_type_uses:
+            for type_name in type_names:
+                target = type_nodes.get(type_name)
+                if target is not None and target is not var_node:
+                    self.graph.add_edge(target, var_node, label="uses-type")
+
     def get_node_visitor(self, node):
         visitors = {
             "contract_declaration": self.visit_contract_declaration,
             "interface_declaration": self.visit_contract_declaration,
             "function_definition": self.visit_function_definition,
+            "modifier_definition": self.visit_modifier_definition,
             "event_definition": self.visit_event_definition,
+            "struct_declaration": self.visit_struct_declaration,
+            "state_variable_declaration": self.visit_state_variable_declaration,
+            "variable_declaration": self.visit_variable_declaration,
         }
         return visitors.get(node.type, self.visit_default)
 
     def get_node_exit(self, node):
         exit_funcs = {
             "contract_declaration": self.exit_contract_declaration,
-            "interface_declaration": self.visit_contract_declaration,
+            "interface_declaration": self.exit_contract_declaration,
             "function_definition": self.exit_function_definition,
+            "struct_declaration": self.exit_struct_declaration,
         }
         return exit_funcs.get(node.type, self.exit_default)
 

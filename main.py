@@ -71,9 +71,10 @@ def main():
                               prop_checker, args.language, args.mode)
 
     passes = [
-        ["function"],
-        ["contract"],
-        ["event", "state_var", "struct", "var"]
+        ["function", "modifier", "event"],
+        ["contract", "struct"],
+        ["state_var"],
+        ["contract", "struct"],
     ]
     parallel = True
 
@@ -96,6 +97,17 @@ def main():
     else:
         if args.mode not in ["removal"]:
             raise ValueError(f"Unknown mode: {args.mode}. Must be 'removal'")
+
+        # Inheritance-chain simplification: flatten base contracts into the
+        # children that use their members, so the base can then be removed and
+        # the de-shared members reduced individually by the passes below.
+        interesting.removal_mode = "flatten"
+        interesting.mode = ["contract"]
+        perform_dd(interesting, lambda n: n.node_type == "contract",
+                   parallel=parallel, language=args.language)
+        interesting.removal_mode = "removal"
+        graph = build_graph_from_file(file_path, args.language)
+        interesting.graph = graph
 
     for pass_ in passes:
         if args.language == "java":

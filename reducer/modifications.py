@@ -31,6 +31,8 @@ class SolidityDeclarationRemoval(ASTRemoval):
     def __init__(self, content, graph):
         super().__init__(content, graph)
         self.removed_nodes = []
+        self.removed_ranges = []
+        self.contract_scope = []
 
     def visit_default(self, node):
         pass
@@ -40,82 +42,237 @@ class SolidityDeclarationRemoval(ASTRemoval):
 
     def get_node_visitor(self, node):
         visitors = {
+            "contract_declaration": self.visit_contract_declaration,
+            "interface_declaration": self.visit_contract_declaration,
             "function_definition": self.visit_function_definition,
             "call_expression": self.visit_call_expression,
             "modifier_definition": self.visit_modifier_definition,
-            "struct_definition": self.visit_struct_definition,
-            "variable_declaration": self.visit_variable_declaration,
+            "modifier_invocation": self.visit_modifier_invocation,
+            "struct_declaration": self.visit_struct_definition,
             "state_variable_declaration": self.visit_state_variable_declaration,
             "event_definition": self.visit_event_definition,
+            "emit_statement": self.visit_emit_statement,
+            "inheritance_specifier": self.visit_inheritance_specifier,
+            "using_directive": self.visit_using_directive,
+            # Use-site cleanup: drop statements that reference a removed
+            # declaration (state var / local var / struct), keeping the program
+            # free of dangling references.
+            "expression_statement": self.visit_use_site_statement,
+            "return_statement": self.visit_use_site_statement,
+            "variable_declaration_statement": self.visit_use_site_statement,
         }
         return visitors.get(node.type, self.visit_default)
 
     def get_node_exit(self, node):
         exit_funcs = {
+            "contract_declaration": self.exit_contract_declaration,
+            "interface_declaration": self.exit_contract_declaration,
         }
         return exit_funcs.get(node.type, self.exit_default)
 
+    def _current_contract(self):
+        return self.contract_scope[-1] if self.contract_scope else None
+
+    def _is_selected(self, name, node_type, signature=None):
+        """True if the delta-debugger selected *this* declaration for removal.
+
+        Declarations are matched by a position-independent identity --
+        ``(enclosing contract, name, node type[, parameter signature])`` -- so
+        same-named declarations in different contracts (and overloads) are
+        addressed independently. Matching by bare name instead would couple
+        them and prevent 1-minimal reductions; matching by byte offset would
+        break as the reducer mutates the source.
+        """
+        contract = self._current_contract()
+        for n in self.nodes_to_remove:
+            if n.node_type != node_type or n.name != name:
+                continue
+            if getattr(n.parent, "name", None) != contract:
+                continue
+            if node_type == "function" and n.args != signature:
+                continue
+            return True
+        return False
+
+    def _name_fully_removed(self, name):
+        """True if every function declaration with this name is being removed.
+
+        A call is only dangling when no same-named function survives, so we
+        strip calls only then -- removing one of several same-named functions
+        never deletes calls bound to the survivors. A function is removed when it
+        is selected directly or its enclosing contract is being removed.
+        """
+        decls = [n for n in self.graph.nodes
+                 if n.node_type == "function" and n.name == name]
+        return bool(decls) and all(
+            n in self.nodes_to_remove
+            or getattr(n.parent, "name", None) in self.removed_contracts
+            for n in decls
+        )
+
+    def _mark(self, node):
+        if node is not None and node not in self.removed_nodes:
+            self.removed_nodes.append(node)
+
+    def visit_contract_declaration(self, node):
+        """Tracks the enclosing contract; removes the whole block if selected."""
+        name = parsers.declaration_name(node)
+        self.contract_scope.append(name)
+        if name in self.removed_contracts:
+            self._mark(node)
+
+    def exit_contract_declaration(self, node):
+        if self.contract_scope:
+            self.contract_scope.pop()
+
     def visit_function_definition(self, node):
-        """Collects function nodes to be removed."""
-        function_name = node.children[1].text.decode("utf-8")
-        print(f"Identified function for removal: {function_name}")  # Debug log
-        self.removed_nodes.append(node)
+        """Collects the specific function selected for removal."""
+        name = parsers.declaration_name(node)
+        signature = parsers.parameter_signature(node)
+        if self._is_selected(name, "function", signature):
+            self.removed_nodes.append(node)
 
     def visit_modifier_definition(self, node):
-        """Collects modifier nodes to be removed."""
-        modifier_name = node.children[1].text.decode("utf-8")
-        print(f"Identified modifier for removal: {modifier_name}")  # Debug log
-        self.removed_nodes.append(node)
+        """Collects modifier nodes selected for removal."""
+        if self._is_selected(parsers.declaration_name(node), "modifier"):
+            self.removed_nodes.append(node)
 
     def visit_struct_definition(self, node):
-        """Collects struct nodes to be removed."""
-        struct_name = node.children[1].text.decode("utf-8")
-        print(f"Identified struct for removal: {struct_name}")  # Debug log
-        self.removed_nodes.append(node)
+        """Collects struct nodes selected for removal."""
+        if self._is_selected(parsers.declaration_name(node), "struct"):
+            self.removed_nodes.append(node)
 
     def visit_variable_declaration(self, node):
-        """Collects variable declaration nodes to be removed."""
-        variable_name = node.children[1].text.decode("utf-8")
-        print(f"Identified variable for removal: {variable_name}")  # Debug log
-        self.removed_nodes.append(node)
+        """Collects variable declaration nodes selected for removal."""
+        if self._is_selected(parsers.declaration_name(node), "var"):
+            self.removed_nodes.append(node)
 
     def visit_state_variable_declaration(self, node):
-        """Collects state variable nodes to be removed."""
-        state_variable_name = node.children[1].text.decode("utf-8")
-        print(f"Identified state variable for removal: {state_variable_name}")  # Debug log
-        self.removed_nodes.append(node)
+        """Collects state variable nodes selected for removal."""
+        if self._is_selected(parsers.declaration_name(node), "state_var"):
+            self.removed_nodes.append(node)
 
     def visit_event_definition(self, node):
-        """Collects event nodes to be removed."""
-        event_name = node.children[1].text.decode("utf-8")
-        print(f"Identified event for removal: {event_name}")  # Debug log
-        self.removed_nodes.append(node)
+        """Collects event nodes selected for removal."""
+        if self._is_selected(parsers.declaration_name(node), "event"):
+            self.removed_nodes.append(node)
+
+    def _callee_name(self, node):
+        """Name being called/emitted by a call_expression, or None for casts etc."""
+        callee = node.children[0] if node.children else None
+        if callee is None:
+            return None
+        inner = callee
+        if callee.type == "expression" and callee.children:
+            inner = callee.children[0]
+        if inner.type == "identifier":
+            return inner.text.decode("utf-8")
+        if inner.type == "member_expression" and inner.children:
+            return inner.children[-1].text.decode("utf-8")
+        return None
+
+    def _enclosing_statement(self, node):
+        """Nearest enclosing statement node, so a removed call/emit takes its
+        whole statement with it (avoids leaving a dangling reference)."""
+        current = node
+        while current is not None:
+            if current.type.endswith("_statement"):
+                return current
+            current = current.parent
+        return None
 
     def visit_call_expression(self, node):
-        child = node.children[0]
-        assert child.type == "expression"
-        match child.children[0].type:
-            case "member_expression":
-                call_name = child.children[0].children[-1].text.decode("utf-8")
-            case "identifier":
-                call_name = child.children[0].text.decode("utf-8")
-            case _:
-                raise Exception("Unknown node")
-        if any(node.name == call_name for node in self.nodes_to_remove):
-            self.removed_nodes.append(node)
-            current_node = node
-            while True:
-                match current_node.type:
-                    case "assignment_expression":
-                        self.removed_nodes.remove(node)
-                        self.removed_nodes.append(current_node)
-                        break
-                    case "function_body":
-                        break
-                    case None:
-                        break
-                    case _:
-                        current_node = current_node.parent
+        """Removes calls to removed functions and old-style event emits.
+
+        Calls are only stripped when the callee no longer exists (a removed
+        event, or a function with no surviving same-named declaration), so the
+        result keeps no dangling references."""
+        call_name = self._callee_name(node)
+        if call_name is None:
+            return
+        if call_name in self.removed_events or self._name_fully_removed(call_name):
+            self._mark(self._enclosing_statement(node) or node)
+
+    def visit_emit_statement(self, node):
+        """Removes an ``emit Event(...)`` statement when the event is removed
+        (the 0.5+ syntax; pre-0.5 emits are plain calls handled above)."""
+        for child in node.children:
+            if child.type == "expression":
+                inner = child.children[0] if child.children else None
+                name = None
+                if inner is not None and inner.type == "identifier":
+                    name = inner.text.decode("utf-8")
+                elif inner is not None and inner.type == "member_expression" \
+                        and inner.children:
+                    name = inner.children[-1].text.decode("utf-8")
+                if name in self.removed_events:
+                    self._mark(node)
+                return
+
+    def visit_modifier_invocation(self, node):
+        """Removes a modifier usage (e.g. ``onlyOwner``) on a function when the
+        modifier itself is being removed."""
+        for child in node.children:
+            if child.type == "identifier":
+                if child.text.decode("utf-8") in self.removed_modifiers:
+                    self._mark(node)
+                return
+
+    def visit_using_directive(self, node):
+        """Removes ``using Lib for ...`` when ``Lib`` is a removed contract/library."""
+        for child in node.children:
+            if child.type in ("type_alias", "user_defined_type", "identifier"):
+                if child.text.decode("utf-8") in self.removed_contracts:
+                    self._mark(node)
+                return
+
+    @staticmethod
+    def _inheritance_base(node):
+        return node.text.decode("utf-8").split("(")[0].strip()
+
+    def visit_inheritance_specifier(self, node):
+        """Removes a base from ``contract X is A, B`` when the base is removed,
+        cleaning up the ``is`` keyword / commas so the result stays valid."""
+        if self._inheritance_base(node) not in self.removed_contracts:
+            return
+        parent = node.parent
+        siblings = parent.children
+        specs = [c for c in siblings if c.type == "inheritance_specifier"]
+        surviving = [s for s in specs
+                     if self._inheritance_base(s) not in self.removed_contracts]
+        if not surviving:
+            # remove the whole inheritance clause: `is A, B`
+            is_kw = next((c for c in siblings if c.type == "is"), None)
+            start = is_kw.start_byte if is_kw else specs[0].start_byte
+            end = max(s.end_byte for s in specs)
+            self.removed_ranges.append((start, end))
+        else:
+            # remove this base plus one adjacent comma
+            idx = siblings.index(node)
+            start, end = node.start_byte, node.end_byte
+            if idx > 0 and siblings[idx - 1].type == ",":
+                start = siblings[idx - 1].start_byte
+            elif idx + 1 < len(siblings) and siblings[idx + 1].type == ",":
+                end = siblings[idx + 1].end_byte
+            self.removed_ranges.append((start, end))
+
+    def _references_removed_value(self, node):
+        """True if any identifier/type under ``node`` names a removed state var,
+        local var, or struct."""
+        stack = list(node.children)
+        while stack:
+            n = stack.pop()
+            if n.type in ("identifier", "type_name", "user_defined_type"):
+                if n.text.decode("utf-8") in self.removed_value_refs:
+                    return True
+            stack.extend(n.children)
+        return False
+
+    def visit_use_site_statement(self, node):
+        """Removes a statement that uses (or, for a local variable, declares) a
+        removed state var / local var / struct, so no dangling reference remains."""
+        if self.removed_value_refs and self._references_removed_value(node):
+            self._mark(node)
 
     def remove_nodes(self, nodes_to_remove: set, mode: str) -> str:
         """
@@ -130,60 +287,194 @@ class SolidityDeclarationRemoval(ASTRemoval):
         """
         if mode not in ["removal"]:
             raise ValueError(f"Unknown mode: {mode}. Must be 'removal'")
-        
+
         parser = parsers.get_parser(self.LANGUAGE)
         tree = parser.parse(self.content.encode("utf-8"))
         self.nodes_to_remove = nodes_to_remove
-        self.traverse_node(tree.root_node)
-        definitions = {
-            node for node in self.removed_nodes
-            if node.type in ["function_definition"]
-        }
-        self.removed_nodes.sort(key=lambda node: node.start_byte, reverse=True)
-        edits = []
-        modified_code = tree.root_node.text
-        for removed_node in self.removed_nodes:
-            if removed_node.type != "function_definition":
-                if any(removed_node.start_byte > n.start_byte and removed_node.end_byte < n.end_byte for n in definitions):
-                    continue
-            if removed_node.type == "assignment_expression":
-                edits.append({
-                    "start_byte": removed_node.start_byte,
-                    "old_end_byte": removed_node.end_byte,
-                    "new_end_byte": removed_node.children[0].end_byte,
-                    "start_point": removed_node.start_point,
-                    "old_end_point": removed_node.end_point,
-                    "new_end_point": removed_node.children[0].end_point,
-                })
-            else:
-                edits.append({
-                    "start_byte": removed_node.start_byte,
-                    "old_end_byte": removed_node.end_byte,
-                    "new_end_byte": removed_node.start_byte,  # Remove content
-                    "start_point": removed_node.start_point,
-                    "old_end_point": removed_node.end_point,
-                    "new_end_point": removed_node.start_point,
-                })
+        self.removed_nodes = []
+        self.removed_ranges = []
+        # Names of declarations being removed, used to also strip their references
+        # (inheritance, modifier usages, emits, library `using`s) so the reduced
+        # program keeps no dangling references.
+        self.removed_contracts = {n.name for n in nodes_to_remove
+                                  if n.node_type == "contract"}
+        self.removed_events = {n.name for n in nodes_to_remove
+                               if n.node_type == "event"}
+        self.removed_modifiers = {n.name for n in nodes_to_remove
+                                  if n.node_type == "modifier"}
+        # State vars / local vars / structs whose *uses* must also be stripped.
+        self.removed_value_refs = {n.name for n in nodes_to_remove
+                                   if n.node_type in ("state_var", "var", "struct")}
+        # Removing a contract takes all its members with it, so references to
+        # those members elsewhere (inherited modifier usages, emits, calls,
+        # state-var/struct uses) must be cleaned up too.
+        for n in self.graph.nodes:
+            if getattr(n.parent, "name", None) in self.removed_contracts:
+                if n.node_type == "modifier":
+                    self.removed_modifiers.add(n.name)
+                elif n.node_type == "event":
+                    self.removed_events.add(n.name)
+                elif n.node_type in ("state_var", "var", "struct"):
+                    self.removed_value_refs.add(n.name)
 
-        for edit in edits:
-            # Apply the edit to the tree
-            tree.edit(
-                start_byte=edit["start_byte"],
-                old_end_byte=edit["old_end_byte"],
-                new_end_byte=edit["new_end_byte"],
-                start_point=edit["start_point"],
-                old_end_point=edit["old_end_point"],
-                new_end_point=edit["new_end_point"],
-            )
-            # Update the source code
-            modified_code = (
-                modified_code[: edit["start_byte"]] +
-                modified_code[edit["start_byte"]:edit["new_end_byte"]] +
-                modified_code[edit["old_end_byte"]:]
-            )
+        # Type-use cascade (option B): removing a contract/struct also removes
+        # the declarations typed by it (followed via `uses-type` edges) and their
+        # uses, so no dangling type reference is left behind.
+        expanded = set(self.nodes_to_remove)
+        work = [n for n in self.nodes_to_remove
+                if n.node_type in ("contract", "struct")]
+        seen = set(work)
+        while work:
+            type_node = work.pop()
+            if type_node not in self.graph:
+                continue
+            for _, dependent, data in self.graph.out_edges(type_node, data=True):
+                if data.get("label") != "uses-type" or dependent in seen:
+                    continue
+                seen.add(dependent)
+                expanded.add(dependent)
+                self.removed_value_refs.add(dependent.name)
+                if dependent.node_type == "struct":
+                    work.append(dependent)
+        self.nodes_to_remove = expanded
+
+        self.traverse_node(tree.root_node)
+
+        # Collect byte ranges to delete: whole removed nodes + explicit ranges
+        # (e.g. an `is Base` clause), then merge overlapping/nested ranges so a
+        # removed contract and its inner members produce a single clean edit.
+        ranges = [(n.start_byte, n.end_byte) for n in self.removed_nodes]
+        ranges.extend(self.removed_ranges)
+        if not ranges:
+            return self.content
+
+        ranges.sort()
+        merged = []
+        for start, end in ranges:
+            if merged and start <= merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], end)
+            else:
+                merged.append([start, end])
+
+        source = bytes(tree.root_node.text)
+        for start, end in sorted(merged, reverse=True):
+            source = source[:start] + source[end:]
+        return remove_empty_lines(source.decode("utf-8"))
+
+    # --- inheritance-chain simplification (flattening) -----------------------
+
+    @staticmethod
+    def _contract_body(contract_node):
+        return next((c for c in contract_node.children
+                     if c.type == "contract_body"), None)
+
+    @staticmethod
+    def _is_constructor(member, contract_name):
+        # 0.5+ uses `constructor`; <=0.4.x names the constructor after the contract.
+        if member.type == "constructor_definition":
+            return True
+        return (member.type == "function_definition"
+                and parsers.declaration_name(member) == contract_name)
+
+    def _inheritance_clause_edit(self, child, base_name, replacement_names):
+        """Edit (start, end, text) that drops ``base_name`` from ``child``'s
+        inheritance list, substituting the base's own parents (rewiring the
+        chain) and tidying the ``is`` keyword / commas."""
+        siblings = child.children
+        specs = [c for c in siblings if c.type == "inheritance_specifier"]
+        target = next((s for s in specs
+                       if self._inheritance_base(s) == base_name), None)
+        if target is None:
+            return None
+        surviving = [self._inheritance_base(s) for s in specs
+                     if s is not target]
+        surviving += [n for n in replacement_names if n not in surviving]
+        if not surviving:
+            is_kw = next((c for c in siblings if c.type == "is"), None)
+            start = is_kw.start_byte if is_kw else specs[0].start_byte
+            end = max(s.end_byte for s in specs)
+            return (start, end, "")
+        idx = siblings.index(target)
+        start, end = target.start_byte, target.end_byte
+        if idx > 0 and siblings[idx - 1].type == ",":
+            start = siblings[idx - 1].start_byte
+        elif idx + 1 < len(siblings) and siblings[idx + 1].type == ",":
+            end = siblings[idx + 1].end_byte
+        # if the base itself had parents, splice them in where it was
+        extra = [n for n in replacement_names
+                 if n not in {self._inheritance_base(s) for s in specs}]
+        return (start, end, (", ".join(extra)) if extra else "")
+
+    def flatten_inheritance(self, nodes_to_remove: set) -> str:
+        """Eliminate base contracts by promoting their members into the children
+        that inherit them, then deleting the base and rewiring the chain.
+
+        This de-shares inherited members so the base can be removed even when a
+        child still uses an inherited field/method -- a semantic-aware bulk
+        reduction. The result is validated by the property check, so unsound
+        cases (e.g. ``super``/diamond) are simply rejected.
+        """
         parser = parsers.get_parser(self.LANGUAGE)
-        updated_tree = parser.parse(modified_code, tree)
-        return updated_tree.root_node.text.decode("utf-8")
+        tree = parser.parse(self.content.encode("utf-8"))
+        contracts = {}
+        stack = [tree.root_node]
+        while stack:
+            n = stack.pop()
+            if n.type in ("contract_declaration", "interface_declaration"):
+                contracts[parsers.declaration_name(n)] = n
+            stack.extend(n.children)
+
+        flatten_names = {n.name for n in nodes_to_remove
+                         if n.node_type == "contract" and n.name in contracts}
+        edits = []        # (start, end, replacement_text); start==end => insert
+        flattened = False
+        for base_name in flatten_names:
+            base = contracts[base_name]
+            body = self._contract_body(base)
+            if body is None:
+                continue
+            members = [c for c in body.children
+                       if c.type not in ("{", "}")
+                       and not self._is_constructor(c, base_name)]
+            # `super` would lose its target once the chain is broken -> skip.
+            if any(b"super." in m.text for m in members):
+                continue
+            member_texts = [(parsers.declaration_name(m), m.text.decode("utf-8"))
+                            for m in members]
+            base_parents = [self._inheritance_base(s) for s in base.children
+                            if s.type == "inheritance_specifier"]
+            # direct children: contracts whose inheritance list names the base
+            children = [c for name, c in contracts.items()
+                        if name != base_name
+                        and any(s.type == "inheritance_specifier"
+                                and self._inheritance_base(s) == base_name
+                                for s in c.children)]
+            if not children:
+                continue  # nothing inherits it; plain removal handles that
+            for child in children:
+                cbody = self._contract_body(child)
+                if cbody is None:
+                    continue
+                existing = {parsers.declaration_name(c) for c in cbody.children
+                            if c.type not in ("{", "}")}
+                # skip members the child overrides (avoids duplicate definitions)
+                to_add = [txt for nm, txt in member_texts if nm not in existing]
+                if to_add:
+                    close = [c for c in cbody.children if c.type == "}"][-1]
+                    edits.append((close.start_byte, close.start_byte,
+                                  "\n" + "\n\n".join(to_add) + "\n"))
+                clause = self._inheritance_clause_edit(child, base_name, base_parents)
+                if clause is not None:
+                    edits.append(clause)
+            edits.append((base.start_byte, base.end_byte, ""))
+            flattened = True
+
+        if not flattened:
+            return self.content
+        out = bytes(tree.root_node.text).decode("utf-8")
+        for start, end, text in sorted(edits, key=lambda e: e[0], reverse=True):
+            out = out[:start] + text + out[end:]
+        return remove_empty_lines(out)
 
 
 class CDeclarationRemoval(ASTRemoval):

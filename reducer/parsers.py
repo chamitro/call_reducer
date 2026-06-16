@@ -130,3 +130,61 @@ def parse(file_name: str, language: str):
     file_content = utils.read_file(file_name).encode("utf-8")
     tree = parser.parse(file_content)
     return tree
+
+
+def declaration_name(node):
+    """Robustly extract a declaration's name via tree-sitter's ``name`` field.
+
+    Preferred over positional ``children[1]`` indexing: it tolerates grammar
+    layout changes and is the same accessor used to identify the declaration
+    both when building the graph and when removing nodes.
+    """
+    name_node = node.child_by_field_name("name")
+    if name_node is None:
+        for child in node.children:
+            if child.type == "identifier":
+                name_node = child
+                break
+    return name_node.text.decode("utf-8") if name_node is not None else None
+
+
+def parameter_signature(function_node):
+    """Parameter-type signature of a ``function_definition``.
+
+    Returns a tuple of parameter type texts, e.g. ``("uint256", "address")``.
+    Together with the name and enclosing contract this forms a unique,
+    position-independent identity for a declaration: it is invariant under the
+    removal of *other* declarations, so it stays valid as the reducer mutates
+    the source (unlike absolute byte offsets).
+    """
+    signature = []
+    for child in function_node.children:
+        if child.type == "parameter":
+            type_node = child.child_by_field_name("type") or (
+                child.children[0] if child.children else None
+            )
+            signature.append(
+                type_node.text.decode("utf-8") if type_node is not None else ""
+            )
+    return tuple(signature)
+
+
+def type_reference_names(declaration_node):
+    """User-defined type names referenced in a declaration's type.
+
+    Scans the declaration's ``type_name`` for user-defined types (e.g. the
+    ``Token`` in ``Token public t;`` or ``mapping(address => Token)``),
+    returning their identifier texts. Used to build ``uses-type`` graph edges so
+    removing a struct/contract can cascade to the declarations typed by it.
+    """
+    names = set()
+    for child in declaration_node.children:
+        if child.type != "type_name":
+            continue
+        stack = [child]
+        while stack:
+            n = stack.pop()
+            if n.type in ("user_defined_type", "type_identifier", "identifier"):
+                names.add(n.text.decode("utf-8"))
+            stack.extend(n.children)
+    return names
