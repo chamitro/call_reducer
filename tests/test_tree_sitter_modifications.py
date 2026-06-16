@@ -3,10 +3,10 @@ import os
 import pytest
 import subprocess
 
-from reducer import utils
-from reducer.graph import DeclarationNode
-from reducer.modifications import CDeclarationRemoval
-from reducer.parsers import parse
+from scythe import utils
+from scythe.graph import DeclarationNode
+from scythe.rewrites import CDeclarationRemoval
+from scythe.parsers import parse
 
 REMOVAL_FUNCTION_NAME = "safe_lshift_func_int16_t_s_s"
 REMOVAL_GLOBAL_VAR_NAME_1 = "g_69"
@@ -26,7 +26,6 @@ REMOVAL_FUNCTION_NODE_SET = {
     DeclarationNode(REMOVAL_IF_STATEMENT, "if_statement", None),
     DeclarationNode(REMOCAL_STRUCT_SPECIFIER, "struct", None),
 }
-# TEST_FILE_NAME = "./C/gcc-59903/small.c"
 TEST_FILE_NAME = "./tests/utils/test_c_file.c"
 TEMP_TEST_FILE_NAME = "./tests/utils/temp_test_c_file.c"
 
@@ -96,41 +95,32 @@ def initial_tree():
 
 @pytest.fixture
 def small_c_tree_removal():
-    # small_c_tree = parse(TEST_SMALL_C, "c")
     content = utils.read_file(TEST_SMALL_C)
     modifier = CDeclarationRemoval(content, nx.DiGraph())
     modifier.remove_nodes(
         TEST_SMALL_C_REMOVAL_FUNCTION_NODE_SET, "removal"
     )
     return
-    # return updated_tree_code
-    # return small_c_tree
 
 
 @pytest.fixture
 def small_c_tree_replacement():
-    # small_c_tree = parse(TEST_SMALL_C, "c")
     content = utils.read_file(TEST_SMALL_C)
     modifier = CDeclarationRemoval(content, nx.DiGraph())
     modifier.remove_nodes(
         TEST_SMALL_C_REMOVAL_FUNCTION_NODE_SET, "replacement"
     )
     return
-    # return updated_tree_code
-    # return small_c_tree
 
 
 @pytest.fixture
 def small_c_tree_combination():
-    # small_c_tree = parse(TEST_SMALL_C, "c")
     content = utils.read_file(TEST_SMALL_C)
     modifier = CDeclarationRemoval(content, nx.DiGraph())
     modifier.remove_nodes(
         TEST_SMALL_C_REMOVAL_FUNCTION_NODE_SET, "combination"
     )
     return
-    # return updated_tree_code
-    # return small_c_tree
 
 
 def find_nodes_of_type(root_node, type):
@@ -146,7 +136,7 @@ def find_nodes_of_type(root_node, type):
 
 
 @pytest.mark.parametrize(
-    'updated_tree_fixture_name',['updated_tree_replacement', 'updated_tree_combination']  # Removal mode does not have the ability to handle return statements
+    'updated_tree_fixture_name',['updated_tree_replacement', 'updated_tree_combination']
 )
 def test_c_program_validity_after_removal(updated_tree_fixture_name, request):
     updated_tree = request.getfixturevalue(updated_tree_fixture_name)
@@ -206,7 +196,6 @@ def test_c_call_expression_removal(initial_tree, updated_tree_fixture_name, requ
     updated_call_expression_nodes = find_nodes_of_type(
         updated_tree.root_node, "call_expression"
     )
-    # assert len(initial_call_expression_nodes) > 0
     if updated_tree_fixture_name == "updated_tree_replacement":
         assert len(updated_call_expression_nodes) == 2
         assert len(updated_call_expression_nodes) < len(initial_call_expression_nodes)
@@ -267,5 +256,3 @@ def test_c_struct_specifier_removal(initial_tree, updated_tree_fixture_name, req
         assert len(initial_struct_specifier_nodes) > len(updated_struct_specifier_nodes)
 
 
-# def test_c_removals_small_c(small_c_tree):
-#     breakpoint()

@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "greduce"
+name = "scythe"
 version = "1.0"
 authors = [
     {name = "Charalambos Mitropoulos", email = "charalambos.mitropoulos@gmail.com"},
@@ -37,19 +37,16 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = [
-  "reducer",
-  "reducer.grammars",
-  "reducer.grammars.solidity",
-]
-py-modules = ["main"]
 include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["scythe*"]
 
 [tool.setuptools.package-data]
 src = ["resources/*"]
 
 [project.scripts]
-greduce = "main:main"
+scythe = "scythe.cli:main"
 
 [tool.pytest.ini_options]
 addopts = "-vv"

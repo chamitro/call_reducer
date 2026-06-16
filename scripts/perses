@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -lt 2 ]]; then
+    echo "usage: perses <source-file> <oracle-script>" >&2
+    exit 2
+fi
+
+src="$1"
+script="$2"
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+jar="${PERSES_JAR:-$here/perses_deploy.jar}"
+java_bin="${PERSES_JAVA:-java}"
+
+ext="${src##*.}"
+abs_src="$(cd "$(dirname "$src")" && pwd)/$(basename "$src")"
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+staged="$work/program.$ext"
+persesout="$work/persesout"
+cp "$abs_src" "$staged"
+cp "$script" "$work/test.sh"
+chmod +x "$work/test.sh"
+
+"$java_bin" -jar "$jar" \
+    --enable-latra false \
+    --latra-fixpoint false \
+    --enable-trec false \
+    --test-script "$work/test.sh" \
+    --input-file "$staged" \
+    --output-dir "$persesout"
+
+if [[ -f "$persesout/program.$ext" ]]; then
+    cp "$persesout/program.$ext" "$abs_src"
+else
+    echo "perses: no output produced for $src" >&2
+    exit 1
+fi

@@ -1,26 +1,13 @@
-"""Tests for Solidity declaration removal.
-
-Each removal must keep the program **semantically valid** -- removing a
-declaration also removes its references (inheritance, modifier usages, event
-emits, library `using`s, calls) so the result has no reference errors. Where the
-required solc version is available we assert the reduced program still compiles;
-otherwise we fall back to a syntactic (no parse error) check.
-"""
 import subprocess
 
 import pytest
 
-from reducer import parsers
-from reducer.graph import build_graph_from_file
-from reducer.modifications import AST_REMOVALS
+from scythe import parsers
+from scythe.graph import build_graph_from_file
+from scythe.rewrites import AST_REMOVALS
 
 SOLC_VERSION = "0.5.0"
 
-# A small, self-contained program exercising every reference kind:
-#  - `onlyOwner` modifier defined in Base, used in Base.ping and Token.setTotal
-#  - `Logged` event defined in Base, emitted in both contracts
-#  - `Token is Base` inheritance
-#  - `Unused` standalone contract
 SNIPPET = """pragma solidity 0.5.0;
 
 contract Base {
@@ -94,44 +81,36 @@ def test_snippet_baseline_compiles(tmp_path):
 def test_removal_keeps_program_valid(graph_and_src, tmp_path, node_type, name, declaration):
     graph, src = graph_and_src
     out = _remove(graph, src, node_type, name)
-    # the declaration itself is gone
     assert declaration not in out
-    # result is syntactically valid
     assert _parses_clean(out)
-    # and (when solc is available) free of reference errors
     if SOLC_OK:
         ok, stderr = _compiles(out, tmp_path)
         assert ok, f"removing {node_type} {name} left a reference error:\n{stderr}"
 
 
 def test_modifier_usages_are_removed(graph_and_src):
-    """Removing a modifier also strips every `... onlyOwner ...` usage."""
     graph, src = graph_and_src
     out = _remove(graph, src, "modifier", "onlyOwner")
     assert "onlyOwner" not in out
 
 
 def test_event_emits_are_removed(graph_and_src):
-    """Removing an event also strips every `emit Logged(...)` statement."""
     graph, src = graph_and_src
     out = _remove(graph, src, "event", "Logged")
     assert "Logged" not in out
 
 
 def test_base_contract_removal_cascades(graph_and_src):
-    """Removing a base contract cleans inheritance and inherited-member uses,
-    while the dependent contract survives."""
     graph, src = graph_and_src
     out = _remove(graph, src, "contract", "Base")
     assert "contract Base" not in out
-    assert "is Base" not in out      # inheritance reference cleaned
-    assert "onlyOwner" not in out    # inherited modifier usage cleaned
-    assert "Logged" not in out       # inherited event emits cleaned
-    assert "contract Token" in out   # dependent contract is kept
+    assert "is Base" not in out
+    assert "onlyOwner" not in out
+    assert "Logged" not in out
+    assert "contract Token" in out
 
 
 def test_unselected_declarations_are_kept(graph_and_src):
-    """Only the selected declaration (and its references) is removed."""
     graph, src = graph_and_src
     out = _remove(graph, src, "modifier", "onlyOwner")
     assert "event Logged" in out
@@ -139,11 +118,6 @@ def test_unselected_declarations_are_kept(graph_and_src):
     assert "contract Unused" in out
 
 
-# --- struct / state variable / local variable removal + use-site cleanup ------
-
-# `Pair` is used only in a local; `counter` only in `bump`; `tmp` is an unused
-# local -- so each can be removed cleanly (declaration + every use) and the
-# remaining program must still compile.
 GAPS_SNIPPET = """pragma solidity 0.5.0;
 
 contract C {
@@ -170,7 +144,6 @@ def gaps_graph_and_src(tmp_path):
 
 
 def test_graph_emits_struct_statevar_var(gaps_graph_and_src):
-    """The graph must surface struct / state_var / var so they are candidates."""
     graph, _ = gaps_graph_and_src
     by_type = {}
     for n in graph.nodes:
@@ -194,7 +167,6 @@ def test_gaps_snippet_baseline_compiles(tmp_path):
 def test_struct_statevar_var_removal_is_valid(gaps_graph_and_src, tmp_path, node_type, name):
     graph, src = gaps_graph_and_src
     out = _remove(graph, src, node_type, name)
-    # declaration and all references to it are gone
     assert name not in out
     assert _parses_clean(out)
     if SOLC_OK:
@@ -203,18 +175,13 @@ def test_struct_statevar_var_removal_is_valid(gaps_graph_and_src, tmp_path, node
 
 
 def test_state_var_use_sites_removed(gaps_graph_and_src):
-    """Removing a state var strips its declaration *and* its uses."""
     graph, src = gaps_graph_and_src
     out = _remove(graph, src, "state_var", "counter")
-    assert "counter" not in out          # declaration + `counter = counter + 1;`
-    assert "total" in out                # the other state var is untouched
-    assert "function bump" in out        # its function survives (now empty)
+    assert "counter" not in out
+    assert "total" in out
+    assert "function bump" in out
 
 
-# --- type-use cascade (option B): removing a type drags its typed decls along --
-
-# `Pair`/`Helper` are used as the *types* of state vars, which are in turn used in
-# functions. Removing the type must cascade to those state vars and their uses.
 CASCADE_SNIPPET = """pragma solidity 0.5.0;
 
 contract Helper {
@@ -255,16 +222,14 @@ def test_uses_type_edges_built(cascade_graph_and_src):
 def test_type_use_cascade_is_valid(cascade_graph_and_src, tmp_path, node_type, name, typed_var):
     graph, src = cascade_graph_and_src
     out = _remove(graph, src, node_type, name)
-    assert f"{node_type} {name}" not in out  # the type declaration is gone
-    assert typed_var not in out              # the state var typed by it cascaded away
+    assert f"{node_type} {name}" not in out
+    assert typed_var not in out
     assert _parses_clean(out)
-    assert "function keep" in out            # unrelated code survives
+    assert "function keep" in out
     if SOLC_OK:
         ok, stderr = _compiles(out, tmp_path)
         assert ok, f"type-use cascade for {name} left a reference error:\n{stderr}"
 
-
-# --- inheritance flattening: eliminate a base by promoting members to children -
 
 FLATTEN_SNIPPET = """pragma solidity 0.5.0;
 
@@ -295,10 +260,10 @@ def _flatten(graph, src, name):
 def test_flatten_eliminates_base_and_promotes_members(flatten_graph_and_src, tmp_path):
     graph, src = flatten_graph_and_src
     out = _flatten(graph, src, "Base")
-    assert "contract Base" not in out          # the base is gone
-    assert "is Base" not in out                # inheritance reference rewired away
-    assert "shared" in out                     # its field promoted into Derived
-    assert "function setShared" in out         # its method promoted too
+    assert "contract Base" not in out
+    assert "is Base" not in out
+    assert "shared" in out
+    assert "function setShared" in out
     assert "contract Derived" in out
     assert _parses_clean(out)
     if SOLC_OK:
@@ -307,7 +272,124 @@ def test_flatten_eliminates_base_and_promotes_members(flatten_graph_and_src, tmp
 
 
 def test_flatten_leaf_contract_is_noop(flatten_graph_and_src):
-    """A contract with no children has nothing to flatten."""
     graph, src = flatten_graph_and_src
     out = _flatten(graph, src, "Derived")
     assert out == src
+
+
+PLACEHOLDER_SNIPPET = """pragma solidity 0.5.0;
+
+contract C {
+    struct Point { uint256 x; uint256 y; }
+    struct Pair { uint256 a; uint256 b; }
+
+    Point internal origin;
+
+    function dist(Point memory p) internal pure returns (uint256) {
+        return p.x + p.y;
+    }
+    function viaField() public view returns (uint256) { return origin.x; }
+    function usesPair() public pure returns (uint256) {
+        Pair memory q = Pair(1, 2);
+        return q.a;
+    }
+    function keep() public pure returns (uint256) { return 42; }
+}
+"""
+
+
+@pytest.fixture
+def placeholder_graph_and_src(tmp_path):
+    f = tmp_path / "placeholder.sol"
+    f.write_text(PLACEHOLDER_SNIPPET)
+    return build_graph_from_file(str(f), "solidity"), PLACEHOLDER_SNIPPET
+
+
+@pytest.mark.skipif(not SOLC_OK, reason=f"solc {SOLC_VERSION} not installed")
+def test_placeholder_snippet_baseline_compiles(tmp_path):
+    ok, stderr = _compiles(PLACEHOLDER_SNIPPET, tmp_path)
+    assert ok, f"baseline snippet should compile:\n{stderr}"
+
+
+def test_struct_param_retyped_to_placeholder(placeholder_graph_and_src, tmp_path):
+    graph, src = placeholder_graph_and_src
+    out = _remove(graph, src, "struct", "Point")
+    assert "struct Point" not in out
+    assert "origin" not in out
+    assert "struct __S" in out
+    assert "__S memory p" in out
+    assert "uint256 x" in out and "uint256 y" in out
+    assert "p.x + p.y" in out
+    assert "function dist" in out
+    assert "function keep" in out
+    assert _parses_clean(out)
+    if SOLC_OK:
+        ok, stderr = _compiles(out, tmp_path)
+        assert ok, f"placeholder retyping left an error:\n{stderr}"
+
+
+def test_placeholder_injected_inside_contract(placeholder_graph_and_src):
+    graph, src = placeholder_graph_and_src
+    out = _remove(graph, src, "struct", "Point")
+    assert out.index("contract C") < out.index("struct __S")
+
+
+def test_fully_deletable_struct_needs_no_placeholder(placeholder_graph_and_src, tmp_path):
+    graph, src = placeholder_graph_and_src
+    out = _remove(graph, src, "struct", "Pair")
+    assert "struct Pair" not in out
+    assert "__S" not in out
+    assert _parses_clean(out)
+    if SOLC_OK:
+        ok, stderr = _compiles(out, tmp_path)
+        assert ok, f"removing fully-deletable struct left an error:\n{stderr}"
+
+
+CONTROLFLOW_SNIPPET = """pragma solidity 0.5.0;
+
+contract C {
+    uint256[] public xs;
+
+    function total() public view returns (uint256) {
+        uint256 n = xs.length;
+        uint256 s = 0;
+        for (uint256 i = 0; i < n; i++) {
+            s += xs[i];
+        }
+        if (xs.length > 0) {
+            s += 1;
+        }
+        return s;
+    }
+    function keep() public pure returns (uint256) { return 7; }
+}
+"""
+
+
+@pytest.fixture
+def controlflow_graph_and_src(tmp_path):
+    f = tmp_path / "controlflow.sol"
+    f.write_text(CONTROLFLOW_SNIPPET)
+    return build_graph_from_file(str(f), "solidity"), CONTROLFLOW_SNIPPET
+
+
+@pytest.mark.skipif(not SOLC_OK, reason=f"solc {SOLC_VERSION} not installed")
+def test_controlflow_snippet_baseline_compiles(tmp_path):
+    ok, stderr = _compiles(CONTROLFLOW_SNIPPET, tmp_path)
+    assert ok, f"baseline snippet should compile:\n{stderr}"
+
+
+def test_state_var_removal_cleans_loops_and_dead_locals(controlflow_graph_and_src, tmp_path):
+    graph, src = controlflow_graph_and_src
+    out = _remove(graph, src, "state_var", "xs")
+    assert "xs" not in out
+    assert "for (" not in out
+    assert "n = " not in out
+    assert "if (" not in out
+    assert "uint256 s = 0" in out
+    assert "return s" in out
+    assert "function keep" in out
+    assert _parses_clean(out)
+    if SOLC_OK:
+        ok, stderr = _compiles(out, tmp_path)
+        assert ok, f"removing xs left a dangling control-flow reference:\n{stderr}"
