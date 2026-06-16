@@ -12,21 +12,28 @@ authors = [
 ]
 description = "Graph-based Program Reduction"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "License :: GPL v3.0 License",
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
     "networkx",
-    "tree-sitter==0.21.0",
-    "picire",
+    "tree-sitter>=0.25,<0.26",
+    "tree-sitter-c>=0.23",
+    "tree-sitter-java>=0.23",
+    "tree-sitter-solidity>=1.2",
+    # The latest picire on PyPI (21.8) imports the legacy `pkg_resources`, which
+    # setuptools >= 81 removed, breaking imports on Python 3.12. The upstream repo
+    # has since dropped pkg_resources, so install from the pinned commit until a
+    # newer release is published.
+    "picire @ git+https://github.com/renatahodovan/picire.git@61d6162296963137b87b8a02d36f697a95d1f85e",
 ]
 
 [tool.setuptools]

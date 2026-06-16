@@ -141,7 +141,7 @@ class SolidityDeclarationRemoval(ASTRemoval):
         }
         self.removed_nodes.sort(key=lambda node: node.start_byte, reverse=True)
         edits = []
-        modified_code = tree.text
+        modified_code = tree.root_node.text
         for removed_node in self.removed_nodes:
             if removed_node.type != "function_definition":
                 if any(removed_node.start_byte > n.start_byte and removed_node.end_byte < n.end_byte for n in definitions):
@@ -183,7 +183,7 @@ class SolidityDeclarationRemoval(ASTRemoval):
             )
         parser = parsers.get_parser(self.LANGUAGE)
         updated_tree = parser.parse(modified_code, tree)
-        return updated_tree.text.decode("utf-8")
+        return updated_tree.root_node.text.decode("utf-8")
 
 
 class CDeclarationRemoval(ASTRemoval):
@@ -736,7 +736,7 @@ class CDeclarationRemoval(ASTRemoval):
         self.removed_nodes.sort(key=lambda node: node.end_byte, reverse=True)
 
         edits = []
-        modified_code = tree.text
+        modified_code = tree.root_node.text
         visited_nodes = [False] * len(self.removed_nodes)
         for i, removed_node in enumerate(self.removed_nodes):
             if visited_nodes[i]:
@@ -805,7 +805,7 @@ class CDeclarationRemoval(ASTRemoval):
 
         parser = parsers.get_parser(self.LANGUAGE)
         updated_tree = parser.parse(modified_code, tree)
-        return remove_empty_lines(updated_tree.text.decode("utf-8"))
+        return remove_empty_lines(updated_tree.root_node.text.decode("utf-8"))
 
 
 class JavaDeclarationRemoval(ASTRemoval):
@@ -858,7 +858,7 @@ class JavaDeclarationRemoval(ASTRemoval):
             tree = self.tree
         self.removed_nodes = self.filter_enclosing_nodes(self.removed_nodes)  # remove duplicates and nested nodes
         self.removed_nodes.sort(key=lambda node: node.start_byte, reverse=True)
-        source_code = tree.text
+        source_code = tree.root_node.text
         modified_code = bytearray(source_code)
 
         for node in self.removed_nodes:
@@ -1336,7 +1336,7 @@ class JavaDeclarationRemoval(ASTRemoval):
         captures = query.captures(tree.root_node)
 
         field_type = None
-        source_code = tree.text
+        source_code = tree.root_node.text
         code = bytearray(source_code)
 
         for node, cap in captures:
@@ -1361,7 +1361,7 @@ class JavaDeclarationRemoval(ASTRemoval):
     def replace_function(self, node_to_replace, tree):
         """Finds method invocations to replace with constant return values in replacement mode."""
         name = node_to_replace.name
-        source_code = tree.text
+        source_code = tree.root_node.text
 
         decl_query_str = f'''
             (method_declaration type: (_) @return_type 
@@ -1422,7 +1422,7 @@ class JavaDeclarationRemoval(ASTRemoval):
         var_type = None
         for n, cap in decl_query.captures(tree.root_node):
             if cap == "var_type":
-                var_type = tree.text[n.start_byte:n.end_byte].decode("utf-8").strip()
+                var_type = tree.root_node.text[n.start_byte:n.end_byte].decode("utf-8").strip()
 
         use_query = parsers.JAVA_LANGUAGE.query(f'''
         ;; initializer RHS: int x = a;
@@ -1454,7 +1454,7 @@ class JavaDeclarationRemoval(ASTRemoval):
         """Replaces nodes with appropriate constant values based on their type in replacement mode."""
         parser = parsers.get_parser(self.LANGUAGE)
         tree = parser.parse(self.content.encode("utf-8"))
-        source_code = tree.text
+        source_code = tree.root_node.text
         self.nodes_to_remove = nodes_to_remove
         nodes_to_replace = []
         mapping = dict()
